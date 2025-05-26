@@ -23,7 +23,10 @@ type LocalModel = {
 
 
 function App() {
-    const [messages, setMessages] = useState([{role: "assistant", content: "Send a message to start..."}]);
+    const [messages, setMessages] = useState<{ role: string, content: string, image?: string }[]>([{
+        role: "assistant",
+        content: "Send a message to start..."
+    }]);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const [models, setModels] = useState<LocalModel[]>([]);
@@ -54,12 +57,10 @@ function App() {
 
     const handleSend = async () => {
         if (!input.trim() && !selectedFile) return; // Don't send if both input and file are empty
-
-        const userMessageContent = selectedFile ? `${input} (Image: ${selectedFile.name})` : input;
-        const newMessages = [...messages, {role: "user", content: userMessageContent}];
+        setLoading(true);
+        let newMessages = [...messages, {role: "user", content: input}];
         setMessages(newMessages);
         setInput("");
-        setLoading(true);
 
         try {
             let response: string;
@@ -69,23 +70,17 @@ function App() {
                     const base64String = reader.result as string;
                     // Remove the data URL prefix if present
                     const base64Data = base64String.split(',')[1] || base64String;
-                    try {
-                        response = await invoke<string>("call_ollama_api_with_image", {
-                            prompt: input,
-                            model: selectedModel,
-                            image_data_base64: base64Data,
-                        });
-                        setMessages((currentMessages) => [...currentMessages, {role: "assistant", content: response}]);
-                    } catch (error) {
-                        setMessages((currentMessages) => [...currentMessages, {
-                            role: "assistant",
-                            content: `Sorry, something went wrong processing the image: ${error}`
-                        },]);
-                    } finally {
-                        setLoading(false);
-                        setSelectedFile(null); // Clear the selected file after sending
-                        if (fileInputRef.current) fileInputRef.current.value = ""; // Clear the file input
-                    }
+                    setMessages([...messages, {
+                        role: "user",
+                        image: base64Data,
+                        content: input + "  \n " + selectedFile.name
+                    }]);
+                    response = await invoke<string>("call_ollama_api_with_image", {
+                        prompt: input,
+                        model: selectedModel,
+                        imageDataBase64: base64Data,
+                    });
+                    setMessages((currentMessages) => [...currentMessages, {role: "assistant", content: response}]);
                 };
                 reader.onerror = (error) => {
                     console.error("File reading error:", error);
@@ -93,7 +88,6 @@ function App() {
                         role: "assistant",
                         content: "Sorry, failed to read the image file."
                     },]);
-                    setLoading(false);
                     setSelectedFile(null);
                     if (fileInputRef.current) fileInputRef.current.value = "";
                 };
@@ -102,17 +96,24 @@ function App() {
             } else {
                 // Existing logic for text-only messages
                 response = await invoke<string>("call_ollama_api", {prompt: input, model: selectedModel});
-                setMessages([...newMessages, {role: "assistant", content: response}]);
-                setLoading(false);
+                newMessages = [...newMessages, {role: "assistant", content: response}];
+                setMessages(newMessages);
             }
 
         } catch (error) {
             // This catch block handles errors from the initial invoke call for text-only messages
             // Image processing errors are handled within reader.onloadend/onerror
             if (!selectedFile) {
-                setMessages([...newMessages, {role: "assistant", content: `Sorry, something went wrong: ${error}`},]);
-                setLoading(false);
+                newMessages = [...newMessages, {
+                    role: "assistant",
+                    content: `Sorry, something went wrong:  \n ${error}`
+                }];
+                setMessages(newMessages);
             }
+        } finally {
+            setLoading(false);
+            setSelectedFile(null); // Clear the selected file after sending
+            if (fileInputRef.current) fileInputRef.current.value = ""; // Clear the file input
         }
     };
 
@@ -136,12 +137,12 @@ function App() {
     const addModel = async (name: string) => {
         if (!name) return;
         await invoke("ollama_add_model", {name});
-        fetchModels();
+        await fetchModels();
     };
 
     const deleteModel = async (name: string) => {
         await invoke("ollama_delete_model", {name});
-        fetchModels();
+        await fetchModels();
     };
 
     const handleDeleteClick = (modelName: string) => {
@@ -175,9 +176,7 @@ function App() {
         setShowAddDialog(false);
     };
 
-    useEffect(() => {
-        fetchModels();
-    }, []);
+    fetchModels()
 
     return (
         <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
@@ -287,13 +286,20 @@ function App() {
                                     initial={{opacity: 0, y: 10}}
                                     animate={{opacity: 1, y: 0}}
                                     transition={{duration: 0.2}}
-                                    className={`markdown-content m-1 p-2 rounded-xl whitespace-pre-wrap break-all min-w-auto max-w-[90%] outline ${
+                                    className={`markdown-content m-2 p-2 rounded-xl whitespace-pre-wrap break-all min-w-auto max-w-[90%] outline ${
                                         msg.role === "user"
                                             ? "justify-self-end"
                                             : "outline-sidebar-primary justify-self-start"
                                     }`}
                                 >
                                     <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                    {msg.image && (
+                                        <img
+                                            src={`data:image/png;base64,${msg.image}`}
+                                            alt="User uploaded content"
+                                            className="max-w-full h-auto mb-2 rounded-lg"
+                                        />
+                                    )}
                                 </motion.div>
                             ))}
                         </ScrollArea>
@@ -308,7 +314,7 @@ function App() {
                         ref={fileInputRef}
                         style={{display: 'none'}}
                         onChange={handleFileSelect}
-                        accept="image/*"
+                        accept="image/png,image/jpeg,image/jpg"
                     />
                     <Button onClick={handleButtonClick} variant={'outline'}><Plus size={16}/></Button>
                     {

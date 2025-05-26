@@ -1,5 +1,6 @@
 [package]
 name = "Spit"
+license = "MIT"
 version = "0.1.0"
 description = "Native Ollama companion app"
 authors = ["Ostabo"]
