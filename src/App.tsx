@@ -7,7 +7,7 @@ import {ScrollArea} from "@/components/ui/scroll-area";
 import {Separator} from "@/components/ui/separator";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog";
-import {Plus, Settings, Trash} from "lucide-react";
+import {Download, Plus, Settings, Trash} from "lucide-react";
 import {motion} from "framer-motion";
 import {invoke} from "@tauri-apps/api/core";
 import ReactMarkdown from "react-markdown";
@@ -23,6 +23,8 @@ type LocalModel = {
 
 
 function App() {
+    const isTauri = '__TAURI_INTERNALS__' in window;
+
     const [messages, setMessages] = useState<{ role: string, content: string, image?: string }[]>([{
         role: "assistant",
         content: "Send a message to start..."
@@ -41,7 +43,8 @@ function App() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        scrollRef.current?.scrollTo({top: scrollRef.current.scrollHeight, behavior: "smooth"});
+        console.log(scrollRef.current?.scrollHeight)
+        scrollRef.current?.scrollTo({top: scrollRef.current?.scrollHeight, behavior: "instant"});
     }, [messages]);
 
     const handleButtonClick = () => {
@@ -180,163 +183,190 @@ function App() {
 
     return (
         <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-            <main className="container mx-auto max-w-4xl p-4 flex flex-col h-screen">
-                <div className="flex gap-2 justify-between items-center mb-4">
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button variant="outline"><Settings size={18}/></Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Manage Models</DialogTitle>
-                            </DialogHeader>
-                            <div className="flex flex-col gap-2">
-                                {models.map((model) => (
-                                    <div key={model.name} className="flex justify-between items-center">
-                                        <span>{model.name}</span>
-                                        <div className="flex gap-1">
-                                            <Button onClick={() => handleDeleteClick(model.name)} size="sm"
-                                                    variant="destructive">
-                                                <Trash size={16} className={'text-white'}/>
+
+            {
+                isTauri ? (
+                    <main className="container mx-auto max-w-4xl p-4 flex flex-col h-screen">
+                        <div className="flex gap-2 justify-between items-center mb-4">
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline"><Settings size={18}/></Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Manage Models</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="flex flex-col gap-2">
+                                        {models.map((model) => (
+                                            <div key={model.name} className="flex justify-between items-center">
+                                                <span>{model.name}</span>
+                                                <div className="flex gap-1">
+                                                    <Button onClick={() => handleDeleteClick(model.name)} size="sm"
+                                                            variant="destructive">
+                                                        <Trash size={16} className={'text-white'}/>
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <Button onClick={() => setShowAddDialog(true)} className="mt-2"
+                                                variant="outline">
+                                            <Plus size={16} className="mr-1"/>Add Model
+                                        </Button>
+                                        <small className={'text-xs'}>Available Models <a
+                                            className="text-gray-500 underline hover:cursor-pointer hover:text-blue-900"
+                                            href={'https://ollama.com/library'}
+                                            target="_blank" rel="noopener noreferrer">
+                                            here
+                                        </a></small>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+
+                            {/* Delete Confirmation Dialog */}
+                            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Confirm Deletion</DialogTitle>
+                                    </DialogHeader>
+                                    <div>
+                                        Are you sure you want to delete the model "{modelToDelete}"? This action cannot
+                                        be
+                                        undone.
+                                    </div>
+                                    <div className="flex justify-end gap-2">
+                                        <Button variant="outline" onClick={handleCancelDelete}>
+                                            Cancel
+                                        </Button>
+                                        <Button variant="destructive" className={'text-white'}
+                                                onClick={handleConfirmDelete}>
+                                            Delete
+                                        </Button>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+
+                            {/* Add Model Dialog */}
+                            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Add New Model</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="flex flex-col gap-2">
+                                        <Input
+                                            placeholder="Enter model name"
+                                            value={newModelName}
+                                            onChange={(e) => setNewModelName(e.target.value)}
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                            <Button variant="outline" onClick={handleCancelAdd}>
+                                                Cancel
+                                            </Button>
+                                            <Button onClick={handleConfirmAdd} disabled={!newModelName}>
+                                                Add
                                             </Button>
                                         </div>
                                     </div>
-                                ))}
-                                <Button onClick={() => setShowAddDialog(true)} className="mt-2" variant="outline">
-                                    <Plus size={16} className="mr-1"/>Add Model
+                                </DialogContent>
+                            </Dialog>
+
+                            <div className="flex gap-2">
+                                <Select value={selectedModel} onValueChange={setSelectedModel}>
+                                    <SelectTrigger className="w-48">
+                                        <SelectValue placeholder="Select Model"/>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {models.map((model) => (
+                                            <SelectItem key={model.name} value={model.name}>
+                                                {model.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <ModeToggle/>
+                            </div>
+                        </div>
+                        <Card className="flex-1 overflow-hidden">
+                            <CardContent className="p-0 h-full">
+                                <ScrollArea className="h-full p-4 flex flex-col gap-2" ref={scrollRef}>
+                                    {messages.map((msg, idx) => (
+                                        <motion.div
+                                            key={idx}
+                                            initial={{opacity: 0, y: 10}}
+                                            animate={{opacity: 1, y: 0}}
+                                            transition={{duration: 0.2}}
+                                            className={`markdown-content m-2 p-2 rounded-xl whitespace-pre-wrap break-all min-w-auto max-w-[90%] outline ${
+                                                msg.role === "user"
+                                                    ? "justify-self-end"
+                                                    : "outline-sidebar-primary justify-self-start"
+                                            }`}
+                                        >
+                                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                            {msg.image && (
+                                                <img
+                                                    src={`data:image/png;base64,${msg.image}`}
+                                                    alt="User uploaded content"
+                                                    className="max-w-full h-auto mb-2 rounded-lg"
+                                                />
+                                            )}
+                                        </motion.div>
+                                    ))}
+                                </ScrollArea>
+                            </CardContent>
+                        </Card>
+
+                        <Separator className="my-4"/>)
+
+                        <div className="flex gap-2 items-center">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                style={{display: 'none'}}
+                                onChange={handleFileSelect}
+                                accept="image/png,image/jpeg,image/jpg"
+                            />
+                            <Button onClick={handleButtonClick} variant={'outline'}><Plus size={16}/></Button>
+                            {
+                                selectedFile ? (
+                                    <Badge className={'h-10'} variant={'secondary'}>
+                                        {selectedFile.name}
+                                        <Trash size={16} onClick={() => setSelectedFile(null)}/>
+                                    </Badge>
+                                ) : (<></>)
+                            }
+                            <Input
+                                placeholder="Type your message..."
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(e)}
+                                aria-label="Chat input"
+                            />
+                            <Button onClick={handleSend} disabled={loading} aria-label="Send message">
+                                {loading ? "..." : "Send"}
+                            </Button>
+                        </div>
+                    </main>) : (
+                    <main className="container mx-auto max-w-4xl p-4 flex flex-col h-screen">
+                        <div className={"absolute bottom-16 left-1/2 transform -translate-x-1/2"}>
+                            <ModeToggle/>
+                        </div>
+                        <div className="flex flex-col text-center items-center justify-center h-full">
+                            <h1 className="p-4 text-8xl font-bold text-primary">Spit</h1>
+                            <h2 className="p-4 text-4xl text-secondary-foreground">Your Ollama companion</h2>
+                            <a
+                                href="/Spit - Ollama Companion App_0.1.0_x64_en-US.msi"
+                                className="p-8"
+                                download
+                            >
+                                <Button
+                                    variant={"outline"}
+                                    className="p-8 cursor-pointer">
+                                    <Download size={36}></Download>
                                 </Button>
-                                <small className={'text-xs'}>Available Models <a
-                                    className="text-gray-500 underline hover:cursor-pointer hover:text-blue-900"
-                                    href={'https://ollama.com/library'}
-                                    target="_blank" rel="noopener noreferrer">
-                                    here
-                                </a></small>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-
-                    {/* Delete Confirmation Dialog */}
-                    <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Confirm Deletion</DialogTitle>
-                            </DialogHeader>
-                            <div>
-                                Are you sure you want to delete the model "{modelToDelete}"? This action cannot be
-                                undone.
-                            </div>
-                            <div className="flex justify-end gap-2">
-                                <Button variant="outline" onClick={handleCancelDelete}>
-                                    Cancel
-                                </Button>
-                                <Button variant="destructive" className={'text-white'} onClick={handleConfirmDelete}>
-                                    Delete
-                                </Button>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-
-                    {/* Add Model Dialog */}
-                    <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Add New Model</DialogTitle>
-                            </DialogHeader>
-                            <div className="flex flex-col gap-2">
-                                <Input
-                                    placeholder="Enter model name"
-                                    value={newModelName}
-                                    onChange={(e) => setNewModelName(e.target.value)}
-                                />
-                                <div className="flex justify-end gap-2">
-                                    <Button variant="outline" onClick={handleCancelAdd}>
-                                        Cancel
-                                    </Button>
-                                    <Button onClick={handleConfirmAdd} disabled={!newModelName}>
-                                        Add
-                                    </Button>
-                                </div>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-
-                    <div className="flex gap-2">
-                        <Select value={selectedModel} onValueChange={setSelectedModel}>
-                            <SelectTrigger className="w-48">
-                                <SelectValue placeholder="Select Model"/>
-                            </SelectTrigger>
-                            <SelectContent>
-                                {models.map((model) => (
-                                    <SelectItem key={model.name} value={model.name}>
-                                        {model.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <ModeToggle/>
-                    </div>
-                </div>
-
-                <Card className="flex-1 overflow-hidden">
-                    <CardContent className="p-0 h-full">
-                        <ScrollArea className="h-full p-4 flex flex-col gap-2" ref={scrollRef}>
-                            {messages.map((msg, idx) => (
-                                <motion.div
-                                    key={idx}
-                                    initial={{opacity: 0, y: 10}}
-                                    animate={{opacity: 1, y: 0}}
-                                    transition={{duration: 0.2}}
-                                    className={`markdown-content m-2 p-2 rounded-xl whitespace-pre-wrap break-all min-w-auto max-w-[90%] outline ${
-                                        msg.role === "user"
-                                            ? "justify-self-end"
-                                            : "outline-sidebar-primary justify-self-start"
-                                    }`}
-                                >
-                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
-                                    {msg.image && (
-                                        <img
-                                            src={`data:image/png;base64,${msg.image}`}
-                                            alt="User uploaded content"
-                                            className="max-w-full h-auto mb-2 rounded-lg"
-                                        />
-                                    )}
-                                </motion.div>
-                            ))}
-                        </ScrollArea>
-                    </CardContent>
-                </Card>
-
-                <Separator className="my-4"/>
-
-                <div className="flex gap-2 items-center">
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        style={{display: 'none'}}
-                        onChange={handleFileSelect}
-                        accept="image/png,image/jpeg,image/jpg"
-                    />
-                    <Button onClick={handleButtonClick} variant={'outline'}><Plus size={16}/></Button>
-                    {
-                        selectedFile ? (
-                            <Badge className={'h-10'} variant={'secondary'}>
-                                {selectedFile.name}
-                                <Trash size={16} onClick={() => setSelectedFile(null)}/>
-                            </Badge>
-                        ) : (<></>)
-                    }
-                    <Input
-                        placeholder="Type your message..."
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e)}
-                        aria-label="Chat input"
-                    />
-                    <Button onClick={handleSend} disabled={loading} aria-label="Send message">
-                        {loading ? "..." : "Send"}
-                    </Button>
-                </div>
-            </main>
+                            </a>
+                        </div>
+                    </main>
+                )
+            }
         </ThemeProvider>
     );
 }
