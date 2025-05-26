@@ -1,7 +1,12 @@
-# Tauri + React + Typescript
+# Spit - Ollama Companion
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+*Sometimes the lama spits out some good stuff!*
 
-## Recommended IDE Setup
-
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+- [React](https://react.dev/)
+- [TypeScript](https://www.typescriptlang.org/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [Shadcn UI](https://ui.shadcn.com/)
+- [Tauri](https://tauri.app/)
+- [Rust](https://www.rust-lang.org/)
+- [Ollama](https://ollama.com/)
+- [ollama-rs](https://github.com/pepperoni21/ollama-rs)

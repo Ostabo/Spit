@@ -1,7 +1,7 @@
 [package]
-name = "spit"
+name = "Spit"
 version = "0.1.0"
-description = "Native Ollama client"
+description = "Native Ollama companion app"
 authors = ["Ostabo"]
 edition = "2024"
 

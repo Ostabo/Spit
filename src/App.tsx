@@ -12,6 +12,8 @@ import {motion} from "framer-motion";
 import {invoke} from "@tauri-apps/api/core";
 import ReactMarkdown from "react-markdown";
 import {Badge} from "@/components/ui/badge.tsx";
+import {ThemeProvider} from "@/components/theme-provider.tsx";
+import {ModeToggle} from "@/components/mode-toggle.tsx";
 
 type LocalModel = {
     name: string;
@@ -27,6 +29,10 @@ function App() {
     const [models, setModels] = useState<LocalModel[]>([]);
     const [selectedModel, setSelectedModel] = useState("");
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [modelToDelete, setModelToDelete] = useState<string | null>(null);
+    const [showAddDialog, setShowAddDialog] = useState(false);
+    const [newModelName, setNewModelName] = useState("");
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -138,111 +144,194 @@ function App() {
         fetchModels();
     };
 
+    const handleDeleteClick = (modelName: string) => {
+        setModelToDelete(modelName);
+        setShowDeleteDialog(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (modelToDelete) {
+            await deleteModel(modelToDelete);
+            setModelToDelete(null);
+            setShowDeleteDialog(false);
+        }
+    };
+
+    const handleCancelDelete = () => {
+        setModelToDelete(null);
+        setShowDeleteDialog(false);
+    };
+
+    const handleConfirmAdd = async () => {
+        if (newModelName) {
+            await addModel(newModelName);
+            setNewModelName("");
+            setShowAddDialog(false);
+        }
+    };
+
+    const handleCancelAdd = () => {
+        setNewModelName("");
+        setShowAddDialog(false);
+    };
+
     useEffect(() => {
         fetchModels();
     }, []);
 
     return (
-        <main className="container mx-auto max-w-lg p-4 flex flex-col h-screen">
-            <div className="flex justify-between items-center mb-4">
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <Button variant="outline"><Settings size={18}/></Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Manage Models</DialogTitle>
-                        </DialogHeader>
-                        <div className="flex flex-col gap-2">
-                            {models.map((model) => (
-                                <div key={model.name} className="flex justify-between items-center">
-                                    <span>{model.name}</span>
-                                    <div className="flex gap-1">
-                                        <Button onClick={() => deleteModel(model.name)} size="sm" variant="destructive">
-                                            <Trash size={16} className={'text-white'}/>
-                                        </Button>
+        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+            <main className="container mx-auto max-w-4xl p-4 flex flex-col h-screen">
+                <div className="flex gap-2 justify-between items-center mb-4">
+                    <Dialog>
+                        <DialogTrigger asChild>
+                            <Button variant="outline"><Settings size={18}/></Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Manage Models</DialogTitle>
+                            </DialogHeader>
+                            <div className="flex flex-col gap-2">
+                                {models.map((model) => (
+                                    <div key={model.name} className="flex justify-between items-center">
+                                        <span>{model.name}</span>
+                                        <div className="flex gap-1">
+                                            <Button onClick={() => handleDeleteClick(model.name)} size="sm"
+                                                    variant="destructive">
+                                                <Trash size={16} className={'text-white'}/>
+                                            </Button>
+                                        </div>
                                     </div>
+                                ))}
+                                <Button onClick={() => setShowAddDialog(true)} className="mt-2" variant="outline">
+                                    <Plus size={16} className="mr-1"/>Add Model
+                                </Button>
+                                <small className={'text-xs'}>Available Models <a
+                                    className="text-gray-500 underline hover:cursor-pointer hover:text-blue-900"
+                                    href={'https://ollama.com/library'}
+                                    target="_blank" rel="noopener noreferrer">
+                                    here
+                                </a></small>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Delete Confirmation Dialog */}
+                    <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Confirm Deletion</DialogTitle>
+                            </DialogHeader>
+                            <div>
+                                Are you sure you want to delete the model "{modelToDelete}"? This action cannot be
+                                undone.
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <Button variant="outline" onClick={handleCancelDelete}>
+                                    Cancel
+                                </Button>
+                                <Button variant="destructive" className={'text-white'} onClick={handleConfirmDelete}>
+                                    Delete
+                                </Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Add Model Dialog */}
+                    <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Add New Model</DialogTitle>
+                            </DialogHeader>
+                            <div className="flex flex-col gap-2">
+                                <Input
+                                    placeholder="Enter model name"
+                                    value={newModelName}
+                                    onChange={(e) => setNewModelName(e.target.value)}
+                                />
+                                <div className="flex justify-end gap-2">
+                                    <Button variant="outline" onClick={handleCancelAdd}>
+                                        Cancel
+                                    </Button>
+                                    <Button onClick={handleConfirmAdd} disabled={!newModelName}>
+                                        Add
+                                    </Button>
                                 </div>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+
+                    <div className="flex gap-2">
+                        <Select value={selectedModel} onValueChange={setSelectedModel}>
+                            <SelectTrigger className="w-48">
+                                <SelectValue placeholder="Select Model"/>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {models.map((model) => (
+                                    <SelectItem key={model.name} value={model.name}>
+                                        {model.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <ModeToggle/>
+                    </div>
+                </div>
+
+                <Card className="flex-1 overflow-hidden">
+                    <CardContent className="p-0 h-full">
+                        <ScrollArea className="h-full p-4 flex flex-col gap-2" ref={scrollRef}>
+                            {messages.map((msg, idx) => (
+                                <motion.div
+                                    key={idx}
+                                    initial={{opacity: 0, y: 10}}
+                                    animate={{opacity: 1, y: 0}}
+                                    transition={{duration: 0.2}}
+                                    className={`markdown-content m-1 p-2 rounded-xl whitespace-pre-wrap break-all min-w-auto max-w-[90%] outline ${
+                                        msg.role === "user"
+                                            ? "justify-self-end"
+                                            : "outline-sidebar-primary justify-self-start"
+                                    }`}
+                                >
+                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                </motion.div>
                             ))}
-                            <Button onClick={() => addModel(prompt("Enter model name:") || "")} className="mt-2">
-                                <Plus size={16} className="mr-1"/>Add Model
-                            </Button>
-                            <small className={'text-xs'}>Available Models <a
-                                className="text-gray-500 underline hover:cursor-pointer hover:text-blue-900"
-                                href={'https://ollama.com/library'}
-                                target="_blank" rel="noopener noreferrer">
-                                here
-                            </a></small>
-                        </div>
-                    </DialogContent>
-                </Dialog>
-                <Select value={selectedModel} onValueChange={setSelectedModel}>
-                    <SelectTrigger className="w-48">
-                        <SelectValue placeholder="Select Model"/>
-                    </SelectTrigger>
-                    <SelectContent>
-                        {models.map((model) => (
-                            <SelectItem key={model.name} value={model.name}>
-                                {model.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
+                        </ScrollArea>
+                    </CardContent>
+                </Card>
 
-            <Card className="flex-1 overflow-hidden">
-                <CardContent className="p-0 h-full">
-                    <ScrollArea className="h-full p-4 flex flex-col gap-2" ref={scrollRef}>
-                        {messages.map((msg, idx) => (
-                            <motion.div
-                                key={idx}
-                                initial={{opacity: 0, y: 10}}
-                                animate={{opacity: 1, y: 0}}
-                                transition={{duration: 0.2}}
-                                className={`m-1 p-2 rounded-xl whitespace-pre-wrap break-words block max-w-[90%] ${
-                                    msg.role === "user"
-                                        ? "bg-blue-500 text-white justify-self-end"
-                                        : "bg-gray-200 text-black justify-self-start"
-                                }`}
-                            >
-                                <ReactMarkdown>{msg.content}</ReactMarkdown>
-                            </motion.div>
-                        ))}
-                    </ScrollArea>
-                </CardContent>
-            </Card>
+                <Separator className="my-4"/>
 
-            <Separator className="my-4"/>
-
-            <div className="flex gap-2 items-center">
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    style={{display: 'none'}}
-                    onChange={handleFileSelect}
-                    accept="image/*"
-                />
-                <Button onClick={handleButtonClick}><Plus size={16}/></Button>
-                {
-                    selectedFile ? (
-                        <Badge className={'h-10'} variant={'secondary'}>
-                            {selectedFile.name}
-                            <Trash size={16} onClick={() => setSelectedFile(null)}/>
-                        </Badge>
-                    ) : (<></>)
-                }
-                <Input
-                    placeholder="Type your message..."
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(e)}
-                    aria-label="Chat input"
-                />
-                <Button onClick={handleSend} disabled={loading} aria-label="Send message">
-                    {loading ? "..." : "Send"}
-                </Button>
-            </div>
-        </main>
+                <div className="flex gap-2 items-center">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        style={{display: 'none'}}
+                        onChange={handleFileSelect}
+                        accept="image/*"
+                    />
+                    <Button onClick={handleButtonClick} variant={'outline'}><Plus size={16}/></Button>
+                    {
+                        selectedFile ? (
+                            <Badge className={'h-10'} variant={'secondary'}>
+                                {selectedFile.name}
+                                <Trash size={16} onClick={() => setSelectedFile(null)}/>
+                            </Badge>
+                        ) : (<></>)
+                    }
+                    <Input
+                        placeholder="Type your message..."
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e)}
+                        aria-label="Chat input"
+                    />
+                    <Button onClick={handleSend} disabled={loading} aria-label="Send message">
+                        {loading ? "..." : "Send"}
+                    </Button>
+                </div>
+            </main>
+        </ThemeProvider>
     );
 }
 
