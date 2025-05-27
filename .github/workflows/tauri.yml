@@ -24,6 +24,8 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install
+      - name: Build the app
+        run: pnpm build
       - name: Upload static files as artifact
         id: deployment
         uses: actions/upload-pages-artifact@v3
