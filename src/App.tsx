@@ -7,13 +7,14 @@ import {ScrollArea} from "@/components/ui/scroll-area";
 import {Separator} from "@/components/ui/separator";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog";
-import {Download, Plus, Settings, Trash} from "lucide-react";
+import {Plus, Settings, Trash} from "lucide-react";
 import {motion} from "framer-motion";
 import {invoke} from "@tauri-apps/api/core";
 import ReactMarkdown from "react-markdown";
 import {Badge} from "@/components/ui/badge.tsx";
 import {ThemeProvider} from "@/components/theme-provider.tsx";
 import {ModeToggle} from "@/components/mode-toggle.tsx";
+import {OpenInNewWindowIcon} from "@radix-ui/react-icons";
 
 type LocalModel = {
     name: string;
@@ -353,14 +354,15 @@ function App() {
                             <h1 className="p-4 text-8xl font-bold text-primary">Spit</h1>
                             <h2 className="p-4 text-4xl text-secondary-foreground">Your Ollama companion</h2>
                             <a
-                                href="/Spit - Ollama Companion App_0.1.0_x64_en-US.msi"
+                                href="https://github.com/Ostabo/Spit/releases"
                                 className="p-8"
-                                download
+                                target="_blank"
                             >
                                 <Button
                                     variant={"outline"}
-                                    className="p-8 cursor-pointer">
-                                    <Download size={36}></Download>
+                                    className="p-8 cursor-pointer text-2xl">
+                                    Download here
+                                    <OpenInNewWindowIcon className="w-10 h-10 p-2"/>
                                 </Button>
                             </a>
                         </div>
