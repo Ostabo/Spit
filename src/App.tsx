@@ -16,6 +16,7 @@ import {ThemeProvider} from "@/components/theme-provider.tsx";
 import {ModeToggle} from "@/components/mode-toggle.tsx";
 import {OpenInNewWindowIcon} from "@radix-ui/react-icons";
 import {useToast} from "@/components/ui/use-toast.ts";
+import {Toaster} from "@/components/ui/toaster.tsx";
 
 type LocalModel = {
     name: string;
@@ -69,8 +70,11 @@ function App() {
     const {toast} = useToast()
 
     useEffect(() => {
-        console.log(scrollRef.current?.scrollHeight)
-        scrollRef.current?.scrollTo({top: scrollRef.current?.scrollHeight, behavior: "instant"});
+        // scrollRef.current?.children[1] is the ScrollArea's content div
+        scrollRef.current?.children[1].scrollTo({
+            top: scrollRef.current?.children[1].scrollHeight,
+            behavior: "instant"
+        });
     }, [messages]);
 
     const handleButtonClick = () => {
@@ -169,7 +173,11 @@ function App() {
     const addModel = async (name: string) => {
         if (!name) return;
         try {
-            await invoke<PullModelStatus>("ollama_add_model", {name});
+            const modelStatus = await invoke<PullModelStatus>("ollama_add_model", {name});
+            toast({
+                title: "Model Added",
+                description: modelStatus.message,
+            })
         } catch (error) {
             toast({
                 title: "Error",
@@ -444,6 +452,7 @@ function App() {
                     </main>
                 )
             }
+            <Toaster/>
         </ThemeProvider>
     );
 }
