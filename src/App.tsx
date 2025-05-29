@@ -7,7 +7,7 @@ import {ScrollArea} from "@/components/ui/scroll-area";
 import {Separator} from "@/components/ui/separator";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog";
-import {Plus, Settings, Trash} from "lucide-react";
+import {LoaderIcon, Plus, Send, Settings, Trash} from "lucide-react";
 import {motion} from "framer-motion";
 import {invoke} from "@tauri-apps/api/core";
 import ReactMarkdown from "react-markdown";
@@ -15,6 +15,7 @@ import {Badge} from "@/components/ui/badge.tsx";
 import {ThemeProvider} from "@/components/theme-provider.tsx";
 import {ModeToggle} from "@/components/mode-toggle.tsx";
 import {OpenInNewWindowIcon} from "@radix-ui/react-icons";
+import {useToast} from "@/components/ui/use-toast.ts";
 
 type LocalModel = {
     name: string;
@@ -22,13 +23,34 @@ type LocalModel = {
     size: number;
 }
 
+type PullModelStatus = {
+    message: string;
+    digest: string | undefined;
+    total: number | undefined;
+    completed: number | undefined;
+}
+
+enum MessageRole {
+    user = "user",
+    assistant = "assistant",
+    system = "system"
+}
+
+type ChatMessage = {
+    role: MessageRole;
+    content: string;
+    image?: string;
+    chatModeChange?: boolean; // Optional field to indicate mode change
+}
+
 
 function App() {
     const isTauri = '__TAURI_INTERNALS__' in window;
 
-    const [messages, setMessages] = useState<{ role: string, content: string, image?: string }[]>([{
-        role: "assistant",
-        content: "Send a message to start..."
+    const [messages, setMessages] = useState<ChatMessage[]>([{
+        role: MessageRole.assistant,
+        content: "Send a message to start...",
+        chatModeChange: true
     }]);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
@@ -39,9 +61,12 @@ function App() {
     const [modelToDelete, setModelToDelete] = useState<string | null>(null);
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [newModelName, setNewModelName] = useState("");
+    const [chatMode, setChatMode] = useState<"call_ollama_api" | "call_ollama_chat">("call_ollama_api");
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const {toast} = useToast()
 
     useEffect(() => {
         console.log(scrollRef.current?.scrollHeight)
@@ -62,7 +87,7 @@ function App() {
     const handleSend = async () => {
         if (!input.trim() && !selectedFile) return; // Don't send if both input and file are empty
         setLoading(true);
-        let newMessages = [...messages, {role: "user", content: input}];
+        let newMessages = [...messages, {role: MessageRole.user, content: input}];
         setMessages(newMessages);
         setInput("");
 
@@ -75,7 +100,7 @@ function App() {
                     // Remove the data URL prefix if present
                     const base64Data = base64String.split(',')[1] || base64String;
                     setMessages([...messages, {
-                        role: "user",
+                        role: MessageRole.user,
                         image: base64Data,
                         content: input + "  \n " + selectedFile.name
                     }]);
@@ -84,12 +109,15 @@ function App() {
                         model: selectedModel,
                         imageDataBase64: base64Data,
                     });
-                    setMessages((currentMessages) => [...currentMessages, {role: "assistant", content: response}]);
+                    setMessages((currentMessages) => [...currentMessages, {
+                        role: MessageRole.assistant,
+                        content: response
+                    }]);
                 };
                 reader.onerror = (error) => {
                     console.error("File reading error:", error);
                     setMessages((currentMessages) => [...currentMessages, {
-                        role: "assistant",
+                        role: MessageRole.assistant,
                         content: "Sorry, failed to read the image file."
                     },]);
                     setSelectedFile(null);
@@ -99,8 +127,8 @@ function App() {
 
             } else {
                 // Existing logic for text-only messages
-                response = await invoke<string>("call_ollama_api", {prompt: input, model: selectedModel});
-                newMessages = [...newMessages, {role: "assistant", content: response}];
+                response = await invoke<string>(chatMode, {prompt: input, model: selectedModel});
+                newMessages = [...newMessages, {role: MessageRole.assistant, content: response}];
                 setMessages(newMessages);
             }
 
@@ -109,7 +137,7 @@ function App() {
             // Image processing errors are handled within reader.onloadend/onerror
             if (!selectedFile) {
                 newMessages = [...newMessages, {
-                    role: "assistant",
+                    role: MessageRole.assistant,
                     content: `Sorry, something went wrong:  \n ${error}`
                 }];
                 setMessages(newMessages);
@@ -140,7 +168,15 @@ function App() {
 
     const addModel = async (name: string) => {
         if (!name) return;
-        await invoke("ollama_add_model", {name});
+        try {
+            await invoke<PullModelStatus>("ollama_add_model", {name});
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: `Failed to add model: ${error}`,
+                variant: "destructive"
+            });
+        }
         await fetchModels();
     };
 
@@ -180,6 +216,15 @@ function App() {
         setShowAddDialog(false);
     };
 
+    const updateChatMode = (value: "call_ollama_api" | "call_ollama_chat") => {
+        setChatMode(value);
+        setMessages([...messages, {
+            role: MessageRole.system,
+            content: `Chat mode changed to ${value === "call_ollama_api" ? "Generate Mode" : "Chat Mode"}`,
+            chatModeChange: true
+        }])
+    }
+
     fetchModels()
 
     return (
@@ -195,30 +240,56 @@ function App() {
                                 </DialogTrigger>
                                 <DialogContent>
                                     <DialogHeader>
-                                        <DialogTitle>Manage Models</DialogTitle>
+                                        <DialogTitle className="font-bold text-xl">Settings</DialogTitle>
                                     </DialogHeader>
-                                    <div className="flex flex-col gap-2">
-                                        {models.map((model) => (
-                                            <div key={model.name} className="flex justify-between items-center">
-                                                <span>{model.name}</span>
-                                                <div className="flex gap-1">
-                                                    <Button onClick={() => handleDeleteClick(model.name)} size="sm"
-                                                            variant="destructive">
-                                                        <Trash size={16} className={'text-white'}/>
-                                                    </Button>
+                                    <div className="p-2">
+                                        <h4 className="text-lg">General</h4>
+                                        <Separator className="my-2"></Separator>
+                                        <div className="flex flex-col gap-2">
+                                            <ul>
+                                                <li className="grid grid-cols-2 place-items-start items-center">
+                                                    <span>Chat Mode: </span>
+                                                    <Select value={chatMode}
+                                                            onValueChange={updateChatMode}>
+                                                        <SelectTrigger className="w-48">
+                                                            <SelectValue placeholder="Select Chat Mode"/>
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="call_ollama_api">Generate
+                                                                Mode</SelectItem>
+                                                            <SelectItem value="call_ollama_chat">Chat Mode</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div className="p-2">
+                                        <h4 className="text-lg">Manage Models</h4>
+                                        <Separator className="my-2"></Separator>
+                                        <div className="flex flex-col gap-2">
+                                            {models.map((model) => (
+                                                <div key={model.name} className="flex justify-between items-center">
+                                                    <span>{model.name}</span>
+                                                    <div className="flex gap-1">
+                                                        <Button onClick={() => handleDeleteClick(model.name)} size="sm"
+                                                                variant="destructive">
+                                                            <Trash size={16} className={'text-white'}/>
+                                                        </Button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
-                                        <Button onClick={() => setShowAddDialog(true)} className="mt-2"
-                                                variant="outline">
-                                            <Plus size={16} className="mr-1"/>Add Model
-                                        </Button>
-                                        <small className={'text-xs'}>Available Models <a
-                                            className="text-gray-500 underline hover:cursor-pointer hover:text-blue-900"
-                                            href={'https://ollama.com/library'}
-                                            target="_blank" rel="noopener noreferrer">
-                                            here
-                                        </a></small>
+                                            ))}
+                                            <Button onClick={() => setShowAddDialog(true)} className="mt-2"
+                                                    variant="outline">
+                                                <Plus size={16} className="mr-1"/>Add Model
+                                            </Button>
+                                            <small className={'text-xs'}>Available Models <a
+                                                className="text-gray-500 underline hover:cursor-pointer hover:text-blue-900"
+                                                href={'https://ollama.com/library'}
+                                                target="_blank" rel="noopener noreferrer">
+                                                here
+                                            </a></small>
+                                        </div>
                                     </div>
                                 </DialogContent>
                             </Dialog>
@@ -299,6 +370,8 @@ function App() {
                                                 msg.role === "user"
                                                     ? "justify-self-end"
                                                     : "outline-sidebar-primary justify-self-start"
+                                            } ${
+                                                msg.chatModeChange && "w-full text-xs text-center border-t border-secondary outline-none rounded-none!"
                                             }`}
                                         >
                                             <ReactMarkdown>{msg.content}</ReactMarkdown>
@@ -315,7 +388,7 @@ function App() {
                             </CardContent>
                         </Card>
 
-                        <Separator className="my-4"/>)
+                        <Separator className="my-4"/>
 
                         <div className="flex gap-2 items-center">
                             <input
@@ -342,7 +415,9 @@ function App() {
                                 aria-label="Chat input"
                             />
                             <Button onClick={handleSend} disabled={loading} aria-label="Send message">
-                                {loading ? "..." : "Send"}
+                                {loading ? "..." : "Send"}{loading ?
+                                <LoaderIcon size="16px" className="ms-2 animate-spin"/> :
+                                <Send size="16px" className="ms-2"/>}
                             </Button>
                         </div>
                     </main>) : (
