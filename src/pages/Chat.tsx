@@ -1,6 +1,6 @@
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog.tsx";
 import {Button} from "@/components/ui/button.tsx";
-import {Clock4, LoaderIcon, Plus, Send, Settings, Trash} from "lucide-react";
+import {Clock4, LoaderIcon, Plus, RefreshCcw, Send, Settings, Trash} from "lucide-react";
 import {Separator} from "@/components/ui/separator.tsx";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.tsx";
 import {Badge} from "@/components/ui/badge.tsx";
@@ -134,9 +134,14 @@ export function Chat() {
         try {
             const result = await invoke<LocalModel[]>("ollama_list");
             setModels(result);
-            if (result.length > 0) setSelectedModel(result[0].name);
+            if (result.length > 0 && (!selectedModel || selectedModel.length <= 0)) setSelectedModel(result[0].name);
         } catch (error) {
             setModels([]);
+            toast({
+                title: "Error",
+                description: `Failed to fetch models: ${error}`,
+                variant: "destructive"
+            })
         }
     };
 
@@ -159,11 +164,6 @@ export function Chat() {
         }
     };
 
-    const deleteModel = async (name: string) => {
-        await invoke("ollama_delete_model", {name});
-        await fetchModels();
-    };
-
     const handleDeleteClick = (modelName: string) => {
         setModelToDelete(modelName);
         setShowDeleteDialog(true);
@@ -171,11 +171,20 @@ export function Chat() {
 
     const handleConfirmDelete = async () => {
         if (modelToDelete) {
-            await deleteModel(modelToDelete);
-            toast({
-                title: "Model Deleted",
-                description: `Model "${modelToDelete}" has been deleted.`,
-            });
+            try {
+                await invoke("ollama_delete_model", {name: modelToDelete});
+                await fetchModels();
+                toast({
+                    title: "Model Deleted",
+                    description: `Model "${modelToDelete}" has been deleted.`,
+                });
+            } catch (error) {
+                toast({
+                    title: "Error",
+                    description: `Failed to delete model: ${error}`,
+                    variant: "destructive"
+                })
+            }
             setModelToDelete(null);
             setShowDeleteDialog(false);
         }
@@ -188,15 +197,11 @@ export function Chat() {
 
     const handleConfirmAdd = () => {
         if (newModelName) {
-            setModels([...models, {
-                name: newModelName.includes(':') ? newModelName : `${newModelName}:latest`,
-                modified_at: new Date().toISOString(),
-                size: 0,
-                temporary: true
-            }]);
             addModel(newModelName); // purposely not awaiting to allow the dialog to close immediately
             setNewModelName("");
             setShowAddDialog(false);
+            setTimeout(() =>
+                fetchModels(), 250); // Refresh models after a short delay - this ensures the model download is in progress
         }
     };
 
@@ -234,7 +239,7 @@ export function Chat() {
                             <Separator className="my-2"></Separator>
                             <div className="flex flex-col gap-2">
                                 <ul>
-                                    <li className="grid grid-cols-2 place-items-start items-center">
+                                    <li className="flex justify-between items-center gap-2">
                                         <span>Chat Mode: </span>
                                         <Select value={chatMode}
                                                 onValueChange={updateChatMode}>
@@ -253,7 +258,16 @@ export function Chat() {
                             </div>
                         </div>
                         <div className="p-2">
-                            <h4 className="text-lg">Manage Models</h4>
+                            <h4 className="text-lg flex justify-between items-center">Manage Models
+                                <Button variant="ghost" onClick={async (event) => {
+                                    const el = event.currentTarget.children[0];
+                                    el.classList.add("animate-spin")
+                                    await fetchModels()
+                                    setTimeout(() => {
+                                        el.classList.remove("animate-spin")
+                                    }, 500)
+                                }}>
+                                    <RefreshCcw size={16}></RefreshCcw></Button></h4>
                             <Separator className="my-2"></Separator>
                             <div className="flex flex-col gap-2">
                                 {models.map((model) => (
@@ -273,8 +287,7 @@ export function Chat() {
                                                         size="sm"
                                                         variant="destructive">
                                                     <Trash size={16} className={'text-white'}/>
-                                                </Button>
-                                            )
+                                                </Button>)
                                         }
                                     </div>
                                 ))}
