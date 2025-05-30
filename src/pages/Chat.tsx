@@ -47,6 +47,12 @@ export function Chat() {
         });
     }, [messages]);
 
+    useEffect(() => {
+        if (!models.flatMap(model => model.name).includes(selectedModel) && models.length > 0) {
+            setSelectedModel(models[0].name)
+        }
+    }, [models])
+
     const handleButtonClick = () => {
         fileInputRef.current?.click();
     };
@@ -123,7 +129,7 @@ export function Chat() {
         }
     };
 
-    const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const handleKeyDown = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             await handleSend();
@@ -353,7 +359,7 @@ export function Chat() {
                 </Dialog>
 
                 <div className="flex gap-2">
-                    <Select value={selectedModel} onValueChange={(value => {
+                    <Select value={selectedModel} required={true} onValueChange={(value => {
                         setSelectedModel(value)
                         setMessages([...messages, {
                             role: MessageRole.system,
