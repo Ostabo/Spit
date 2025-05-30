@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "spit",
+        "title": "Spit - Ollama Companion App",
         "width": 800,
         "height": 600
       }

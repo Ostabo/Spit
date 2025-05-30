@@ -1,13 +1,14 @@
-use ollama_rs::Ollama;
 use ollama_rs::generation::chat::request::ChatMessageRequest;
 use ollama_rs::generation::chat::{ChatMessage, MessageRole};
 use ollama_rs::generation::completion::request::GenerationRequest;
 use ollama_rs::generation::images::Image;
+use ollama_rs::Ollama;
 use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::ops::DerefMut;
 use std::sync::Mutex;
 use tauri::command;
+use tauri::tray::TrayIconBuilder;
 
 #[derive(Serialize, Clone)]
 struct LocalModelWithTemporary {
@@ -135,6 +136,12 @@ async fn ollama_delete_model(name: String) -> Result<String, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            let _ = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .build(app)?;
+            Ok(())
+        })
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             call_ollama_api,
