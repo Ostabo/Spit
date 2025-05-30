@@ -18,8 +18,8 @@ receive responses without the need for cli usage.
 
 ### Screentshots
 
-![Example1](./img/spit-example1.png)
-![Example2](./img/spit-example2.png)
+![Example1](./src/assets/spit-example1.png)
+![Example2](./src/assets/spit-example2.png)
 
 ## References
 
