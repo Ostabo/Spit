@@ -96,14 +96,14 @@ export function Landing() {
                     <CarouselContent>
                         <CarouselItem>
                             <img
-                                src="src/assets/spit-example1.png"
+                                src="/spit-example1.png"
                                 alt="Chat Screen"
                                 className="w-full h-auto rounded-lg shadow-lg"
                             />
                         </CarouselItem>
                         <CarouselItem>
                             <img
-                                src="src/assets/spit-example2.png"
+                                src="/spit-example2.png"
                                 alt="Model Management Screen"
                                 className="w-full h-auto rounded-lg shadow-lg"
                             />
