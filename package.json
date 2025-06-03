@@ -1,7 +1,7 @@
 {
   "name": "spit",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "homepage": "https://spit.ostabo.com",
   "scripts": {
@@ -9,7 +9,10 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri-dev": "tauri dev"
+    "tauri-dev": "tauri dev",
+    "patch": "npx tauri-version patch",
+    "minor": "npx tauri-version minor",
+    "major": "npx tauri-version major"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
