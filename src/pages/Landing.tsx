@@ -5,6 +5,7 @@ import {Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious}
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card.tsx";
 import {Badge} from "@/components/ui/badge.tsx";
 import {Separator} from "@/components/ui/separator.tsx";
+import "./Landing.css";
 
 const features = [
     {
@@ -41,7 +42,21 @@ const features = [
 
 export function Landing() {
     return (
-        <main className="w-full h-full p-4 flex flex-col items-center bg-background">
+        <main className="w-full h-full p-4 flex flex-col items-center bg-transparent">
+            <div className="area">
+                <ul className="circles">
+                    <li></li>
+                    <li></li>
+                    <li></li>
+                    <li></li>
+                    <li></li>
+                    <li></li>
+                    <li></li>
+                    <li></li>
+                    <li></li>
+                    <li></li>
+                </ul>
+            </div>
             <div className="fixed top-0 left-0 p-8">
                 <ModeToggle/>
             </div>
