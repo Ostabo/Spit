@@ -1,15 +1,15 @@
-use ollama_rs::Ollama;
 use ollama_rs::generation::chat::request::ChatMessageRequest;
 use ollama_rs::generation::chat::{ChatMessage, MessageRole};
 use ollama_rs::generation::completion::request::GenerationRequest;
 use ollama_rs::generation::images::Image;
+use ollama_rs::Ollama;
 use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::ops::DerefMut;
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, command};
+use tauri::{command, AppHandle, Emitter};
 
 #[derive(Serialize, Clone)]
 struct LocalModelWithTemporary {
@@ -32,6 +32,14 @@ struct StreamChunk {
 #[serde(rename_all = "camelCase")]
 struct StreamError {
     error: String,
+}
+
+#[derive(Serialize, Clone)]
+struct SerializablePullModelStatus {
+    message: String,
+    digest: Option<String>,
+    total: Option<u64>,
+    completed: Option<u64>,
 }
 
 #[command]
@@ -262,30 +270,66 @@ async fn ollama_list() -> Result<Vec<LocalModelWithTemporary>, String> {
 static DOWNLOADING_MODELS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 #[command]
-async fn ollama_add_model(name: String) -> Result<String, String> {
+async fn ollama_add_model(app: AppHandle, name: String) -> Result<(), ()> {
     let ollama = Ollama::default();
-    let name = match name.contains(":") {
-        true => name,
-        false => format!("{}:latest", name),
+    let name = if name.contains(":") {
+        name
+    } else {
+        format!("{}:latest", name)
     };
     {
         let mut downloading = DOWNLOADING_MODELS.lock().unwrap();
         if downloading.contains(&name) {
-            return Err(format!("Model '{}' is already being downloaded.", name));
+            let _ = app.emit(
+                "ollama_add_model_error",
+                format!("Model '{}' is already being downloaded.", name),
+            );
+            return Err(());
         }
         downloading.push(name.clone());
     }
-    let res = match ollama.pull_model(name.clone(), false).await {
-        Ok(res) => Ok(format!("Model '{}' added: {:?}", name, res)),
-        Err(e) => Err(format!("Failed to add model: {}", e)),
-    };
+    use tokio_stream::StreamExt;
+    match ollama.pull_model_stream(name.clone(), false).await {
+        Ok(mut stream) => {
+            while let Some(status) = stream.next().await {
+                match status {
+                    Ok(status) => {
+                        let serializable_status = SerializablePullModelStatus {
+                            message: status.message,
+                            digest: status.digest,
+                            total: status.total,
+                            completed: status.completed,
+                        };
+                        let _ = app.emit("ollama_add_model_status", serializable_status.clone());
+                        if serializable_status
+                            .message
+                            .to_lowercase()
+                            .contains("success")
+                        {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        let _ = app.emit("ollama_add_model_error", format!("Failed: {}", e));
+                        break;
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            let _ = app.emit(
+                "ollama_add_model_error",
+                format!("Failed to add model: {}", e),
+            );
+        }
+    }
     {
         let mut downloading = DOWNLOADING_MODELS.lock().unwrap();
         if let Some(pos) = downloading.iter().position(|x| x == &name) {
             downloading.remove(pos);
         }
     }
-    res
+    Ok(())
 }
 
 #[command]

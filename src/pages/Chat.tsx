@@ -1,11 +1,10 @@
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog.tsx";
 import {Button} from "@/components/ui/button.tsx";
-import {Clock4, LoaderIcon, Plus, RefreshCcw, Send, Settings, Trash} from "lucide-react";
+import {LoaderIcon, Plus, RefreshCcw, Send, Settings, Trash} from "lucide-react";
 import {Separator} from "@/components/ui/separator.tsx";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.tsx";
 import {Badge} from "@/components/ui/badge.tsx";
 import {formatModelSize} from "@/util/utils.ts";
-import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip.tsx";
 import {Input} from "@/components/ui/input.tsx";
 import {ModeToggle} from "@/components/mode-toggle.tsx";
 import {Card, CardContent} from "@/components/ui/card.tsx";
@@ -251,22 +250,66 @@ export function Chat() {
         }
     };
 
+    // --- Streaming Add Model ---
+    // Status/Loading-Map jetzt immer mit dem Modellnamen als Key
+    const [addModelStatusMap, setAddModelStatusMap] = useState<Record<string, PullModelStatus>>({});
+    const [addModelLoadingMap, setAddModelLoadingMap] = useState<Record<string, boolean>>({});
+    useEffect(() => {
+        let unlistenStatus: (() => void) | null = null;
+        let unlistenError: (() => void) | null = null;
+        (async () => {
+            unlistenStatus = await listen<PullModelStatus & { name?: string }>("ollama_add_model_status", (event) => {
+                // Modellname aus aktuellem Dialog merken (über closure)
+                if (!event.payload || !event.payload.message) return;
+                // Wir müssen den Key (Modellnamen) aus einer closure holen
+                // Wir nehmen an, dass der zuletzt gestartete Download der aktuelle ist
+                // (da immer nur ein Download pro Modellname möglich ist)
+                // Alternativ: Modellname im Status-Objekt mitgeben (siehe Rust-Backend)
+                // Hier: Wir merken uns den zuletzt gestarteten Namen in einer Ref
+                if (lastAddModelNameRef.current) {
+                    const key = lastAddModelNameRef.current;
+                    setAddModelStatusMap(prev => ({...prev, [key]: event.payload}));
+                    setAddModelLoadingMap(prev => ({...prev, [key]: true}));
+                }
+            });
+            unlistenError = await listen<{ message: string }>("ollama_add_model_error", (event) => {
+                if (lastAddModelNameRef.current) {
+                    const key = lastAddModelNameRef.current;
+                    setAddModelStatusMap(prev => ({
+                        ...prev,
+                        [key]: {...prev[key], message: event.payload.message, completed: undefined, total: undefined}
+                    }));
+                    setAddModelLoadingMap(prev => ({...prev, [key]: false}));
+                }
+            });
+        })();
+        return () => {
+            unlistenStatus && unlistenStatus();
+            unlistenError && unlistenError();
+        };
+    }, []);
+
+    // Ref für den zuletzt gestarteten Modellnamen (für Statuszuordnung)
+    const lastAddModelNameRef = React.useRef<string | null>(null);
+
     const addModel = async (name: string) => {
         if (!name) return;
+        lastAddModelNameRef.current = name;
+        setAddModelStatusMap(prev => ({
+            ...prev,
+            [name]: {message: 'Starting download...', digest: undefined, total: undefined, completed: undefined}
+        }));
+        setAddModelLoadingMap(prev => ({...prev, [name]: true}));
         try {
-            const modelStatus = await invoke<PullModelStatus>("ollama_add_model", {name});
-            toast({
-                title: "Model Added",
-                description: name + " is installed now." + (modelStatus.message?.length > 0 ? ` - ${modelStatus.message}` : ""),
-            })
+            await invoke("ollama_add_model", {name});
+            setAddModelLoadingMap(prev => ({...prev, [name]: false}));
+            setTimeout(() => fetchModels(), 1000);
         } catch (error) {
-            toast({
-                title: "Error",
-                description: `Failed to add model: ${error}`,
-                variant: "destructive"
-            });
-        } finally {
-            await fetchModels();
+            setAddModelStatusMap(prev => ({
+                ...prev,
+                [name]: {message: `Fehler: ${error}`, digest: undefined, total: undefined, completed: undefined}
+            }));
+            setAddModelLoadingMap(prev => ({...prev, [name]: false}));
         }
     };
 
@@ -413,27 +456,33 @@ export function Chat() {
                                     <RefreshCcw size={16}></RefreshCcw></Button></h4>
                             <Separator className="my-2"></Separator>
                             <div className="flex flex-col gap-2">
-                                {models.map((model) => (
-                                    <div key={model.name} className="flex justify-between items-center">
-                                                    <span className="flex items-center gap-2">{model.name}
-                                                        <Badge variant="secondary">{formatModelSize(model.size)}</Badge></span>
-                                        {
-                                            model.temporary ? (
-                                                <Tooltip delayDuration={0}>
-                                                    <TooltipContent>Installing, this might take some
-                                                        time...</TooltipContent>
-                                                    <TooltipTrigger><Clock4
-                                                        className="me-2"></Clock4></TooltipTrigger>
-                                                </Tooltip>
+                                {models.map((model) => {
+                                    const isDownloading = addModelLoadingMap[model.name];
+                                    const status = addModelStatusMap[model.name];
+                                    return (
+                                        <div key={model.name} className="flex justify-between items-center">
+                                            <span className="flex items-center gap-2">{model.name}
+                                                <Badge variant="secondary">{formatModelSize(model.size)}</Badge></span>
+                                            {model.temporary || isDownloading ? (
+                                                <div className="flex items-center gap-2">
+                                                    <LoaderIcon className="animate-spin" size={16}/>
+                                                    <span>{status?.message || "Downloading..."}</span>
+                                                    {typeof status?.completed === "number" && typeof status?.total === "number" && status.total > 0 && (
+                                                        <span>
+                                                            {`(${Math.round((status.completed / status.total) * 100)}%)`}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <Button onClick={() => handleDeleteClick(model.name)}
                                                         size="sm"
                                                         variant="destructive">
                                                     <Trash size={16} className={'text-white'}/>
-                                                </Button>)
-                                        }
-                                    </div>
-                                ))}
+                                                </Button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                                 <Button onClick={() => setShowAddDialog(true)} className="mt-2"
                                         variant="outline">
                                     <Plus size={16} className="mr-1"/>Add Model
@@ -482,12 +531,15 @@ export function Chat() {
                                 placeholder="Enter model name - e.g. 'gemma3:1b'"
                                 value={newModelName}
                                 onChange={(e) => setNewModelName(e.target.value)}
+                                disabled={Object.values(addModelLoadingMap).some(Boolean)}
                             />
                             <div className="flex justify-end gap-2">
-                                <Button variant="outline" onClick={handleCancelAdd}>
+                                <Button variant="outline" onClick={handleCancelAdd}
+                                        disabled={Object.values(addModelLoadingMap).some(Boolean)}>
                                     Cancel
                                 </Button>
-                                <Button onClick={handleConfirmAdd} disabled={!newModelName}>
+                                <Button onClick={handleConfirmAdd}
+                                        disabled={!newModelName || Object.values(addModelLoadingMap).some(Boolean)}>
                                     Add
                                 </Button>
                             </div>
