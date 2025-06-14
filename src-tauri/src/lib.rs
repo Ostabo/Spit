@@ -7,9 +7,9 @@ use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::ops::DerefMut;
 use std::sync::Mutex;
-use tauri::command;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri::{command, AppHandle, Emitter};
 
 #[derive(Serialize, Clone)]
 struct LocalModelWithTemporary {
@@ -21,18 +21,68 @@ struct LocalModelWithTemporary {
 
 static CHAT_HISTORY: Lazy<Mutex<Vec<ChatMessage>>> = Lazy::new(|| Mutex::new(Vec::new()));
 
-#[command]
-async fn call_ollama_api(prompt: String, model: String) -> Result<String, String> {
-    let ollama = Ollama::default();
-    let req = GenerationRequest::new(model.parse().unwrap(), &prompt);
-    match ollama.generate(req).await {
-        Ok(response) => Ok(response.response),
-        Err(e) => Err(format!("Ollama error: {}", e)),
-    }
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct StreamChunk {
+    content: String,
+    done: bool,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct StreamError {
+    error: String,
 }
 
 #[command]
-async fn call_ollama_chat(prompt: String, model: String) -> Result<String, String> {
+async fn call_ollama_api_stream(app: AppHandle, prompt: String, model: String) -> Result<(), ()> {
+    let ollama = Ollama::default();
+    let req = GenerationRequest::new(model.parse().unwrap(), &prompt);
+    let mut stream = match ollama.generate_stream(req).await {
+        Ok(s) => s,
+        Err(e) => {
+            let _ = app.emit(
+                "ollama_stream_error",
+                StreamError {
+                    error: format!("Ollama error: {}", e),
+                },
+            );
+            return Err(());
+        }
+    };
+    use tokio_stream::StreamExt;
+    while let Some(chunk) = stream.next().await {
+        match chunk {
+            Ok(responses) => {
+                for resp in responses {
+                    let _ = app.emit(
+                        "ollama_stream_chunk",
+                        StreamChunk {
+                            content: resp.response.clone(),
+                            done: resp.done,
+                        },
+                    );
+                    if resp.done {
+                        let _ = app.emit("ollama_stream_done", ());
+                    }
+                }
+            }
+            Err(e) => {
+                let _ = app.emit(
+                    "ollama_stream_error",
+                    StreamError {
+                        error: format!("Ollama error: {}", e),
+                    },
+                );
+                return Err(());
+            }
+        }
+    }
+    Ok(())
+}
+
+#[command]
+async fn call_ollama_chat_stream(app: AppHandle, prompt: String, model: String) -> Result<(), ()> {
     let ollama = Ollama::default();
     let history_clone = {
         let mut h = CHAT_HISTORY.lock().unwrap();
@@ -40,27 +90,98 @@ async fn call_ollama_chat(prompt: String, model: String) -> Result<String, Strin
         h.clone()
     };
     let req = ChatMessageRequest::new(model.parse().unwrap(), history_clone.clone());
-    match ollama.send_chat_messages(req).await {
-        Ok(response) => Ok(response.message.content),
-        Err(e) => Err(format!("Ollama error: {}", e)),
+    let mut stream = match ollama.send_chat_messages_stream(req).await {
+        Ok(s) => s,
+        Err(e) => {
+            let _ = app.emit(
+                "ollama_stream_error",
+                StreamError {
+                    error: format!("Ollama error: {}", e),
+                },
+            );
+            return Err(());
+        }
+    };
+    use tokio_stream::StreamExt;
+    while let Some(chunk) = stream.next().await {
+        match chunk {
+            Ok(responses) => {
+                let _ = app.emit(
+                    "ollama_stream_chunk",
+                    StreamChunk {
+                        content: responses.message.content.clone(),
+                        done: responses.done,
+                    },
+                );
+                if responses.done {
+                    let _ = app.emit("ollama_stream_done", ());
+                }
+            }
+            Err(e) => {
+                let _ = app.emit(
+                    "ollama_stream_error",
+                    StreamError {
+                        error: format!("Ollama error: {:?}", e),
+                    },
+                );
+                return Err(());
+            }
+        }
     }
+    Ok(())
 }
 
 #[command]
-async fn call_ollama_api_with_image(
+async fn call_ollama_api_with_image_stream(
+    app: AppHandle,
     prompt: String,
     model: String,
     image_data_base64: String,
-) -> Result<String, String> {
+) -> Result<(), ()> {
     let ollama = Ollama::default();
-
     let req = GenerationRequest::new(model.parse().unwrap(), &prompt)
         .images(vec![Image::from_base64(image_data_base64)]);
-
-    match ollama.generate(req).await {
-        Ok(response) => Ok(response.response),
-        Err(e) => Err(format!("Ollama error: {}", e)),
+    let mut stream = match ollama.generate_stream(req).await {
+        Ok(s) => s,
+        Err(e) => {
+            let _ = app.emit(
+                "ollama_stream_error",
+                StreamError {
+                    error: format!("Ollama error: {}", e),
+                },
+            );
+            return Err(());
+        }
+    };
+    use tokio_stream::StreamExt;
+    while let Some(chunk) = stream.next().await {
+        match chunk {
+            Ok(responses) => {
+                for resp in responses {
+                    let _ = app.emit(
+                        "ollama_stream_chunk",
+                        StreamChunk {
+                            content: resp.response.clone(),
+                            done: resp.done,
+                        },
+                    );
+                    if resp.done {
+                        let _ = app.emit("ollama_stream_done", ());
+                    }
+                }
+            }
+            Err(e) => {
+                let _ = app.emit(
+                    "ollama_stream_error",
+                    StreamError {
+                        error: format!("Ollama error: {}", e),
+                    },
+                );
+                return Err(());
+            }
+        }
     }
+    Ok(())
 }
 
 #[command]
@@ -157,9 +278,9 @@ pub fn run() {
         })
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
-            call_ollama_api,
-            call_ollama_chat,
-            call_ollama_api_with_image,
+            call_ollama_api_stream,
+            call_ollama_chat_stream,
+            call_ollama_api_with_image_stream,
             ollama_list,
             ollama_add_model,
             ollama_delete_model

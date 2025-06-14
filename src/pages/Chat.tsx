@@ -16,6 +16,7 @@ import React, {useEffect, useRef, useState} from "react";
 import {ChatMessage, LocalModel, MessageRole, PullModelStatus} from "@/util/types.ts";
 import {useToast} from "@/components/ui/use-toast.ts";
 import {invoke} from "@tauri-apps/api/core";
+import {listen} from "@tauri-apps/api/event";
 
 export function Chat() {
     const [messages, setMessages] = useState<ChatMessage[]>([{
@@ -65,72 +66,102 @@ export function Chat() {
     };
 
     const handleSend = async () => {
-        if (!input.trim() && !selectedFile) return; // Don't send if both input and file are empty
+        if (!input.trim() && !selectedFile) return;
         setLoading(true);
-        let newMessages = [...messages, {role: MessageRole.user, content: input}];
-        setMessages(newMessages);
+        let userMsg: ChatMessage = {role: MessageRole.user, content: input};
+        if (selectedFile) userMsg = {...userMsg, image: ""};
+        setMessages((msgs) => [...msgs, userMsg]);
         setInput("");
 
+        let assistantMsgIndex: number;
+        let currentContent = "";
+        let unsubChunk: (() => void) | null = null;
+        let unsubDone: (() => void) | null = null;
+        let unsubError: (() => void) | null = null;
+
+        const addAssistantMsg = () => {
+            setMessages((msgs) => {
+                assistantMsgIndex = msgs.length;
+                return [...msgs, {role: MessageRole.assistant, content: ""}];
+            });
+        };
+
+        const updateAssistantMsg = (chunk: string) => {
+            currentContent += chunk;
+            setMessages((msgs) => {
+                const updated = [...msgs];
+                updated[assistantMsgIndex] = {...updated[assistantMsgIndex], content: currentContent};
+                return updated;
+            });
+        };
+
+        const finishAssistantMsg = () => {
+            setLoading(false);
+            setSelectedFile(null);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+            unsubChunk && unsubChunk();
+            unsubDone && unsubDone();
+            unsubError && unsubError();
+        };
+
+        const handleError = (err: string) => {
+            setMessages((msgs) => [...msgs, {
+                role: MessageRole.assistant,
+                content: `Sorry, something went wrong:  \n ${err}`
+            }]);
+            finishAssistantMsg();
+        };
+
+        addAssistantMsg();
+
+        // Event-Listener für Streaming
+        unsubChunk = await listen<{ content: string; done: boolean }>("ollama_stream_chunk", (event) => {
+            updateAssistantMsg(event.payload.content);
+        });
+        unsubDone = await listen("ollama_stream_done", () => {
+            finishAssistantMsg();
+        });
+        unsubError = await listen<{ error: string }>("ollama_stream_error", (event) => {
+            handleError(event.payload.error);
+        });
+
         try {
-            let response: string;
             if (selectedFile) {
                 const reader = new FileReader();
                 reader.onloadend = async () => {
                     const base64String = reader.result as string;
-                    // Remove the data URL prefix if present
-                    const base64Data = base64String.split(',')[1] || base64String;
-                    setMessages([...messages, {
-                        role: MessageRole.user,
-                        image: base64Data,
-                        content: input + "  \n " + selectedFile.name
-                    }]);
-                    response = await invoke<string>("call_ollama_api_with_image", {
+                    const base64Data = base64String.split(",")[1] || base64String;
+                    setMessages((msgs) => {
+                        const lastUser = {
+                            ...msgs[msgs.length - 2],
+                            image: base64Data,
+                            content: input + "  \n " + selectedFile.name
+                        };
+                        return [...msgs.slice(0, msgs.length - 2), lastUser, msgs[msgs.length - 1]];
+                    });
+                    await invoke("call_ollama_api_with_image_stream", {
                         prompt: input,
                         model: selectedModel,
                         imageDataBase64: base64Data,
                     });
-                    setMessages((currentMessages) => [...currentMessages, {
-                        role: MessageRole.assistant,
-                        content: response
-                    }]);
                 };
-                reader.onerror = (error) => {
-                    console.error("File reading error:", error);
-                    setMessages((currentMessages) => [...currentMessages, {
-                        role: MessageRole.assistant,
-                        content: "Sorry, failed to read the image file."
-                    },]);
-                    setSelectedFile(null);
-                    if (fileInputRef.current) fileInputRef.current.value = "";
+                reader.onerror = (_) => {
+                    handleError("File reading error");
                 };
                 reader.readAsDataURL(selectedFile);
-
             } else {
-                // Existing logic for text-only messages
-                response = await invoke<string>(chatMode, {prompt: input, model: selectedModel});
-                newMessages = [...newMessages, {role: MessageRole.assistant, content: response}];
-                setMessages(newMessages);
+                await invoke(chatMode === "call_ollama_chat" ? "call_ollama_chat_stream" : "call_ollama_api_stream", {
+                    prompt: input,
+                    model: selectedModel,
+                });
             }
-
         } catch (error) {
-            // This catch block handles errors from the initial invoke call for text-only messages
-            // Image processing errors are handled within reader.onloadend/onerror
-            if (!selectedFile) {
-                newMessages = [...newMessages, {
-                    role: MessageRole.assistant,
-                    content: `Sorry, something went wrong:  \n ${error}`
-                }];
-                setMessages(newMessages);
-            }
-        } finally {
-            setLoading(false);
-            setSelectedFile(null); // Clear the selected file after sending
-            if (fileInputRef.current) fileInputRef.current.value = ""; // Clear the file input
+            handleError(String(error));
         }
     };
 
     const handleKeyDown = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === "Enter" && !e.shiftKey) {
+        if (e.key === "Enter" && !e.shiftKey && !loading) {
             e.preventDefault();
             await handleSend();
         }
