@@ -5,11 +5,14 @@ use ollama_rs::generation::images::Image;
 use ollama_rs::Ollama;
 use once_cell::sync::Lazy;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{command, AppHandle, Emitter};
+use tokio::sync::Mutex as TokioMutex;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Serialize, Clone)]
 struct LocalModelWithTemporary {
@@ -269,6 +272,9 @@ async fn ollama_list() -> Result<Vec<LocalModelWithTemporary>, String> {
 
 static DOWNLOADING_MODELS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
+static CANCEL_TOKENS: Lazy<TokioMutex<HashMap<String, CancellationToken>>> =
+    Lazy::new(|| TokioMutex::new(HashMap::new()));
+
 #[command]
 async fn ollama_add_model(app: AppHandle, name: String) -> Result<(), ()> {
     let ollama = Ollama::default();
@@ -288,10 +294,22 @@ async fn ollama_add_model(app: AppHandle, name: String) -> Result<(), ()> {
         }
         downloading.push(name.clone());
     }
+    let cancel_token = CancellationToken::new();
+    {
+        let mut map = CANCEL_TOKENS.lock().await;
+        map.insert(name.clone(), cancel_token.clone());
+    }
     use tokio_stream::StreamExt;
     match ollama.pull_model_stream(name.clone(), false).await {
         Ok(mut stream) => {
             while let Some(status) = stream.next().await {
+                if cancel_token.is_cancelled() {
+                    let _ = app.emit(
+                        "ollama_add_model_error",
+                        format!("Download for '{}' cancelled.", name),
+                    );
+                    break;
+                }
                 match status {
                     Ok(status) => {
                         let serializable_status = SerializablePullModelStatus {
@@ -329,7 +347,27 @@ async fn ollama_add_model(app: AppHandle, name: String) -> Result<(), ()> {
             downloading.remove(pos);
         }
     }
+    {
+        let mut map = CANCEL_TOKENS.lock().await;
+        map.remove(&name);
+    }
     Ok(())
+}
+
+#[command]
+async fn ollama_cancel_download(name: String) -> Result<(), String> {
+    let name = if name.contains(":") {
+        name
+    } else {
+        format!("{}:latest", name)
+    };
+    let map = CANCEL_TOKENS.lock().await;
+    if let Some(token) = map.get(&name) {
+        token.cancel();
+        Ok(())
+    } else {
+        Err(format!("No active download for model '{}'.", name))
+    }
 }
 
 #[command]
@@ -373,7 +411,8 @@ pub fn run() {
             call_ollama_api_with_image_stream,
             ollama_list,
             ollama_add_model,
-            ollama_delete_model
+            ollama_delete_model,
+            ollama_cancel_download
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,6 +1,6 @@
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog.tsx";
 import {Button} from "@/components/ui/button.tsx";
-import {LoaderIcon, Plus, RefreshCcw, Send, Settings, Trash} from "lucide-react";
+import {CircleSlash, LoaderIcon, Plus, RefreshCcw, Send, Settings, Trash} from "lucide-react";
 import {Separator} from "@/components/ui/separator.tsx";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.tsx";
 import {Badge} from "@/components/ui/badge.tsx";
@@ -17,6 +17,7 @@ import {useToast} from "@/components/ui/use-toast.ts";
 import {invoke} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
 import {load} from '@tauri-apps/plugin-store';
+import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip.tsx";
 
 export function Chat() {
     const [messages, setMessages] = useState<ChatMessage[]>([{
@@ -182,7 +183,6 @@ export function Chat() {
 
         addAssistantMsg();
 
-        // Event-Listener für Streaming
         unsubChunk = await listen<{ content: string; done: boolean }>("ollama_stream_chunk", (event) => {
             updateAssistantMsg(event.payload.content);
         });
@@ -251,7 +251,6 @@ export function Chat() {
     };
 
     // --- Streaming Add Model ---
-    // Status/Loading-Map jetzt immer mit dem Modellnamen als Key
     const [addModelStatusMap, setAddModelStatusMap] = useState<Record<string, PullModelStatus>>({});
     const [addModelLoadingMap, setAddModelLoadingMap] = useState<Record<string, boolean>>({});
     useEffect(() => {
@@ -259,13 +258,8 @@ export function Chat() {
         let unlistenError: (() => void) | null = null;
         (async () => {
             unlistenStatus = await listen<PullModelStatus & { name?: string }>("ollama_add_model_status", (event) => {
-                // Modellname aus aktuellem Dialog merken (über closure)
                 if (!event.payload || !event.payload.message) return;
-                // Wir müssen den Key (Modellnamen) aus einer closure holen
-                // Wir nehmen an, dass der zuletzt gestartete Download der aktuelle ist
-                // (da immer nur ein Download pro Modellname möglich ist)
-                // Alternativ: Modellname im Status-Objekt mitgeben (siehe Rust-Backend)
-                // Hier: Wir merken uns den zuletzt gestarteten Namen in einer Ref
+                // Takes last started (assumes no race condition stuff happens)
                 if (lastAddModelNameRef.current) {
                     const key = lastAddModelNameRef.current;
                     setAddModelStatusMap(prev => ({...prev, [key]: event.payload}));
@@ -289,7 +283,6 @@ export function Chat() {
         };
     }, []);
 
-    // Ref für den zuletzt gestarteten Modellnamen (für Statuszuordnung)
     const lastAddModelNameRef = React.useRef<string | null>(null);
 
     const addModel = async (name: string) => {
@@ -368,7 +361,6 @@ export function Chat() {
         }])
     }
 
-    // Persistierte Settings laden
     useEffect(() => {
         (async () => {
             const store = await load('settings.json', {autoSave: false});
@@ -381,7 +373,6 @@ export function Chat() {
         })();
     }, []);
 
-    // Settings speichern, wenn sie sich ändern
     useEffect(() => {
         (async () => {
             const store = await load('settings.json', {autoSave: false});
@@ -395,6 +386,18 @@ export function Chat() {
     useEffect(() => {
         fetchModels();
     }, []);
+
+    const handleCancelDownload = async (modelName: string) => {
+        try {
+            await invoke("ollama_cancel_download", {name: modelName});
+        } catch (e) {
+            toast({
+                title: "Error when cancelling download",
+                description: String(e),
+                variant: "destructive"
+            });
+        }
+    };
 
     return (
         <main className="container mx-auto max-w-4xl p-4 flex flex-col h-screen">
@@ -472,6 +475,20 @@ export function Chat() {
                                                             {`(${Math.round((status.completed / status.total) * 100)}%)`}
                                                         </span>
                                                     )}
+                                                    <Button size="sm"
+                                                            className="bg-red-400"
+                                                            variant="destructive"
+                                                            onClick={() => handleCancelDownload(model.name)}>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <CircleSlash size={16}
+                                                                             className={'text-white'}></CircleSlash>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>Cancel Download</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </Button>
                                                 </div>
                                             ) : (
                                                 <Button onClick={() => handleDeleteClick(model.name)}
