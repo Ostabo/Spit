@@ -17,6 +17,7 @@ import {ChatMessage, LocalModel, MessageRole, PullModelStatus} from "@/util/type
 import {useToast} from "@/components/ui/use-toast.ts";
 import {invoke} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
+import {load} from '@tauri-apps/plugin-store';
 
 export function Chat() {
     const [messages, setMessages] = useState<ChatMessage[]>([{
@@ -34,6 +35,7 @@ export function Chat() {
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [newModelName, setNewModelName] = useState("");
     const [chatMode, setChatMode] = useState<"call_ollama_api" | "call_ollama_chat">("call_ollama_api");
+    const [responseMode, setResponseMode] = useState<'stream' | 'sync'>('stream');
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,6 +74,73 @@ export function Chat() {
         if (selectedFile) userMsg = {...userMsg, image: ""};
         setMessages((msgs) => [...msgs, userMsg]);
         setInput("");
+
+        if (responseMode === 'sync') {
+            try {
+                let response: string = '';
+                if (selectedFile) {
+                    const reader = new FileReader();
+                    reader.onloadend = async () => {
+                        const base64String = reader.result as string;
+                        const base64Data = base64String.split(",")[1] || base64String;
+                        setMessages((msgs) => {
+                            const lastUser = {
+                                ...msgs[msgs.length - 1],
+                                image: base64Data,
+                                content: input + "  \n " + selectedFile.name
+                            };
+                            return [...msgs.slice(0, msgs.length - 1), lastUser];
+                        });
+                        try {
+                            response = await invoke<string>("call_ollama_api_with_image", {
+                                prompt: input,
+                                model: selectedModel,
+                                imageDataBase64: base64Data,
+                            });
+                            setMessages((msgs) => [...msgs, {role: MessageRole.assistant, content: response}]);
+                        } catch (error) {
+                            setMessages((msgs) => [...msgs, {
+                                role: MessageRole.assistant,
+                                content: `Sorry, something went wrong:  \n ${error}`
+                            }]);
+                        } finally {
+                            setLoading(false);
+                            setSelectedFile(null);
+                            if (fileInputRef.current) fileInputRef.current.value = "";
+                        }
+                    };
+                    reader.onerror = (_) => {
+                        setMessages((msgs) => [...msgs, {
+                            role: MessageRole.assistant,
+                            content: "Sorry, failed to read the image file."
+                        }]);
+                        setSelectedFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                        setLoading(false);
+                    };
+                    reader.readAsDataURL(selectedFile);
+                } else {
+                    try {
+                        response = await invoke<string>(chatMode, {prompt: input, model: selectedModel});
+                        setMessages((msgs) => [...msgs, {role: MessageRole.assistant, content: response}]);
+                    } catch (error) {
+                        setMessages((msgs) => [...msgs, {
+                            role: MessageRole.assistant,
+                            content: `Sorry, something went wrong:  \n ${error}`
+                        }]);
+                    } finally {
+                        setLoading(false);
+                    }
+                }
+            } catch (error) {
+                setMessages((msgs) => [...msgs, {
+                    role: MessageRole.assistant,
+                    content: `Sorry, something went wrong:  \n ${error}`
+                }]);
+                setLoading(false);
+            }
+            return;
+        }
 
         let assistantMsgIndex: number;
         let currentContent = "";
@@ -256,6 +325,30 @@ export function Chat() {
         }])
     }
 
+    // Persistierte Settings laden
+    useEffect(() => {
+        (async () => {
+            const store = await load('settings.json', {autoSave: false});
+            const savedChatMode = await store.get<string>('chatMode');
+            const savedResponseMode = await store.get<string>('responseMode');
+            const savedModel = await store.get<string>('selectedModel');
+            if (savedChatMode === 'call_ollama_api' || savedChatMode === 'call_ollama_chat') setChatMode(savedChatMode);
+            if (savedResponseMode === 'stream' || savedResponseMode === 'sync') setResponseMode(savedResponseMode);
+            if (savedModel) setSelectedModel(savedModel);
+        })();
+    }, []);
+
+    // Settings speichern, wenn sie sich ändern
+    useEffect(() => {
+        (async () => {
+            const store = await load('settings.json', {autoSave: false});
+            await store.set('chatMode', chatMode);
+            await store.set('responseMode', responseMode);
+            await store.set('selectedModel', selectedModel);
+            await store.save();
+        })();
+    }, [chatMode, responseMode, selectedModel]);
+
     useEffect(() => {
         fetchModels();
     }, []);
@@ -288,6 +381,19 @@ export function Chat() {
                                                     Mode</SelectItem>
                                                 <SelectItem value="call_ollama_chat">Chat
                                                     Mode</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </li>
+                                    <li className="flex justify-between items-center gap-2 mt-2">
+                                        <span>Response mode: </span>
+                                        <Select value={responseMode}
+                                                onValueChange={v => setResponseMode(v as 'stream' | 'sync')}>
+                                            <SelectTrigger className="w-48">
+                                                <SelectValue placeholder="Stream responses or not"/>
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="stream">Streaming</SelectItem>
+                                                <SelectItem value="sync">Synchron</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </li>
@@ -478,3 +584,4 @@ export function Chat() {
         </main>
     )
 }
+

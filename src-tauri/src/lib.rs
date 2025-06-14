@@ -1,15 +1,15 @@
+use ollama_rs::Ollama;
 use ollama_rs::generation::chat::request::ChatMessageRequest;
 use ollama_rs::generation::chat::{ChatMessage, MessageRole};
 use ollama_rs::generation::completion::request::GenerationRequest;
 use ollama_rs::generation::images::Image;
-use ollama_rs::Ollama;
 use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::ops::DerefMut;
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{command, AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, command};
 
 #[derive(Serialize, Clone)]
 struct LocalModelWithTemporary {
@@ -32,6 +32,48 @@ struct StreamChunk {
 #[serde(rename_all = "camelCase")]
 struct StreamError {
     error: String,
+}
+
+#[command]
+async fn call_ollama_api(prompt: String, model: String) -> Result<String, String> {
+    let ollama = Ollama::default();
+    let req = GenerationRequest::new(model.parse().unwrap(), &prompt);
+    match ollama.generate(req).await {
+        Ok(response) => Ok(response.response),
+        Err(e) => Err(format!("Ollama error: {}", e)),
+    }
+}
+
+#[command]
+async fn call_ollama_chat(prompt: String, model: String) -> Result<String, String> {
+    let ollama = Ollama::default();
+    let history_clone = {
+        let mut h = CHAT_HISTORY.lock().unwrap();
+        h.push(ChatMessage::new(MessageRole::User, prompt));
+        h.clone()
+    };
+    let req = ChatMessageRequest::new(model.parse().unwrap(), history_clone.clone());
+    match ollama.send_chat_messages(req).await {
+        Ok(response) => Ok(response.message.content),
+        Err(e) => Err(format!("Ollama error: {}", e)),
+    }
+}
+
+#[command]
+async fn call_ollama_api_with_image(
+    prompt: String,
+    model: String,
+    image_data_base64: String,
+) -> Result<String, String> {
+    let ollama = Ollama::default();
+
+    let req = GenerationRequest::new(model.parse().unwrap(), &prompt)
+        .images(vec![Image::from_base64(image_data_base64)]);
+
+    match ollama.generate(req).await {
+        Ok(response) => Ok(response.response),
+        Err(e) => Err(format!("Ollama error: {}", e)),
+    }
 }
 
 #[command]
@@ -258,6 +300,7 @@ async fn ollama_delete_model(name: String) -> Result<String, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
             let quit_i = MenuItem::with_id(app, "quit", "Quit Spit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&quit_i])?;
@@ -278,6 +321,9 @@ pub fn run() {
         })
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
+            call_ollama_api,
+            call_ollama_chat,
+            call_ollama_api_with_image,
             call_ollama_api_stream,
             call_ollama_chat_stream,
             call_ollama_api_with_image_stream,
