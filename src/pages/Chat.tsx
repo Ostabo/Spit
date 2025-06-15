@@ -9,8 +9,6 @@ import {Input} from "@/components/ui/input.tsx";
 import {ModeToggle} from "@/components/mode-toggle.tsx";
 import {Card, CardContent} from "@/components/ui/card.tsx";
 import {ScrollArea} from "@/components/ui/scroll-area.tsx";
-import {motion} from "framer-motion";
-import ReactMarkdown from "react-markdown";
 import React, {useEffect, useRef, useState} from "react";
 import {ChatMessage, LocalModel, MessageRole, PullModelStatus} from "@/util/types.ts";
 import {useToast} from "@/components/ui/use-toast.ts";
@@ -18,6 +16,7 @@ import {invoke} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
 import {load} from '@tauri-apps/plugin-store';
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip.tsx";
+import ChatMessageItem from "@/components/chat-message-item.tsx";
 
 export function Chat() {
     const [messages, setMessages] = useState<ChatMessage[]>([{
@@ -399,6 +398,9 @@ export function Chat() {
         }
     };
 
+    // State for open/close of think block per message index
+    const [thinkOpen, setThinkOpen] = useState<Record<number, boolean>>({});
+
     return (
         <main className="container mx-auto max-w-4xl p-4 flex flex-col h-screen">
             <div className="flex gap-2 justify-between items-center mb-4">
@@ -591,28 +593,13 @@ export function Chat() {
                 <CardContent className="p-0 h-full">
                     <ScrollArea className="h-full p-4 flex flex-col gap-2" ref={scrollRef}>
                         {messages.map((msg, idx) => (
-                            <motion.div
+                            <ChatMessageItem
                                 key={idx}
-                                initial={{opacity: 0, y: 10}}
-                                animate={{opacity: 1, y: 0}}
-                                transition={{duration: 0.2}}
-                                className={`markdown-content m-2 p-2 rounded-xl whitespace-pre-wrap break-all min-w-auto max-w-[90%] outline ${
-                                    msg.role === "user"
-                                        ? "justify-self-end"
-                                        : "outline-sidebar-primary justify-self-start"
-                                } ${
-                                    msg.chatModeChange && "w-full text-xs text-center border-t border-secondary outline-none rounded-none!"
-                                }`}
-                            >
-                                <ReactMarkdown>{msg.content}</ReactMarkdown>
-                                {msg.image && (
-                                    <img
-                                        src={`data:image/png;base64,${msg.image}`}
-                                        alt="User uploaded content"
-                                        className="max-w-full h-auto mb-2 rounded-lg"
-                                    />
-                                )}
-                            </motion.div>
+                                msg={msg}
+                                idx={idx}
+                                thinkOpen={thinkOpen}
+                                setThinkOpen={setThinkOpen}
+                            />
                         ))}
                     </ScrollArea>
                 </CardContent>
@@ -653,4 +640,3 @@ export function Chat() {
         </main>
     )
 }
-
