@@ -9,7 +9,12 @@ export default function rehypeThink() {
                     type: 'element',
                     tagName: 'think',
                     properties: {},
-                    children: [...buffer],
+                    // children als divs wrappen, um verschachtelte <p> zu vermeiden
+                    children: buffer.map(child =>
+                        child.type === 'element' && child.tagName === 'p'
+                            ? {...child, tagName: 'div'}
+                            : child
+                    ),
                 });
                 buffer = [];
             }

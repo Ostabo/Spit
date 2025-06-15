@@ -41,6 +41,7 @@ const ChatMessageItem: React.FC<ChatMessageProps> = memo(({msg, idx, thinkOpen, 
                             {props.children}
                         </Think>
                     ),
+                    p: ({children}) => (<div>{children}</div>),
                 }}
             >
                 {msg.content}
@@ -57,3 +58,4 @@ const ChatMessageItem: React.FC<ChatMessageProps> = memo(({msg, idx, thinkOpen, 
 });
 
 export default ChatMessageItem;
+
