@@ -1,5 +1,4 @@
 import React from "react";
-import {AnimatePresence, motion} from "framer-motion";
 
 interface ThinkProps {
     children: React.ReactNode;
@@ -33,21 +32,14 @@ const Think: React.FC<ThinkProps> = ({children, open, onToggle, idx}) => {
                 </svg>
                 <span className="text-xs font-medium">Think{open ? ':' : '...'}</span>
             </button>
-            <AnimatePresence initial={true}>
-                {open && (
-                    <motion.div
-                        key={"think-content-" + idx}
-                        initial={{opacity: 0, scaleY: 0.95}}
-                        animate={{opacity: 1, scaleY: 1}}
-                        exit={{opacity: 0, scaleY: 0.95}}
-                        transition={{duration: 0.25, ease: "easeInOut"}}
-                        style={{originY: 0}}
-                        className="overflow-hidden inline content-start break-normal text-wrap wrap-normal ml-2 rounded px-2 py-1 pb-2 text-muted-foreground text-[0.97em]"
-                    >
-                        {children}
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            {open && (
+                <div
+                    id={"think-content-" + idx}
+                    className="overflow-hidden inline content-start break-normal text-wrap wrap-normal ml-2 rounded px-2 py-1 pb-2 text-muted-foreground text-[0.97em]"
+                >
+                    {children}
+                </div>
+            )}
         </div>
     );
 };

@@ -404,118 +404,127 @@ export function Chat() {
     return (
         <main className="container mx-auto max-w-4xl p-4 flex flex-col h-screen">
             <div className="flex gap-2 justify-between items-center mb-4">
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <Button variant="outline"><Settings size={18}/></Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle className="font-bold text-xl">Settings</DialogTitle>
-                        </DialogHeader>
-                        <div className="p-2">
-                            <h4 className="text-lg">General</h4>
-                            <Separator className="my-2"></Separator>
-                            <div className="flex flex-col gap-2">
-                                <ul>
-                                    <li className="flex justify-between items-center gap-2">
-                                        <span>Chat Mode: </span>
-                                        <Select value={chatMode}
-                                                onValueChange={updateChatMode}>
-                                            <SelectTrigger className="w-48">
-                                                <SelectValue placeholder="Select Chat Mode"/>
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="call_ollama_api">Generate
-                                                    Mode</SelectItem>
-                                                <SelectItem value="call_ollama_chat">Chat
-                                                    Mode</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </li>
-                                    <li className="flex justify-between items-center gap-2 mt-2">
-                                        <span>Response mode: </span>
-                                        <Select value={responseMode}
-                                                onValueChange={v => setResponseMode(v as 'stream' | 'sync')}>
-                                            <SelectTrigger className="w-48">
-                                                <SelectValue placeholder="Stream responses or not"/>
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="stream">Streaming</SelectItem>
-                                                <SelectItem value="sync">Synchron</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </li>
-                                </ul>
+                <div className="flex gap-2">
+                    <Dialog>
+                        <DialogTrigger asChild>
+                            <Button variant="outline"><Settings size={18}/></Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle className="font-bold text-xl">Settings</DialogTitle>
+                            </DialogHeader>
+                            <div className="p-2">
+                                <h4 className="text-lg">General</h4>
+                                <Separator className="my-2"></Separator>
+                                <div className="flex flex-col gap-2">
+                                    <ul>
+                                        <li className="flex justify-between items-center gap-2">
+                                            <span>Chat Mode: </span>
+                                            <Select value={chatMode}
+                                                    onValueChange={updateChatMode}>
+                                                <SelectTrigger className="w-48">
+                                                    <SelectValue placeholder="Select Chat Mode"/>
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="call_ollama_api">Generate
+                                                        Mode</SelectItem>
+                                                    <SelectItem value="call_ollama_chat">Chat
+                                                        Mode</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </li>
+                                        <li className="flex justify-between items-center gap-2 mt-2">
+                                            <span>Response mode: </span>
+                                            <Select value={responseMode}
+                                                    onValueChange={v => setResponseMode(v as 'stream' | 'sync')}>
+                                                <SelectTrigger className="w-48">
+                                                    <SelectValue placeholder="Stream responses or not"/>
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="stream">Streaming</SelectItem>
+                                                    <SelectItem value="sync">Synchron</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </li>
+                                    </ul>
+                                </div>
                             </div>
-                        </div>
-                        <div className="p-2">
-                            <h4 className="text-lg flex justify-between items-center">Manage Models
-                                <Button variant="ghost" onClick={async (event) => {
-                                    const el = event.currentTarget.children[0];
-                                    el.classList.add("animate-spin")
-                                    await fetchModels()
-                                    setTimeout(() => {
-                                        el.classList.remove("animate-spin")
-                                    }, 500)
-                                }}>
-                                    <RefreshCcw size={16}></RefreshCcw></Button></h4>
-                            <Separator className="my-2"></Separator>
-                            <div className="flex flex-col gap-2">
-                                {models.map((model) => {
-                                    const isDownloading = addModelLoadingMap[model.name];
-                                    const status = addModelStatusMap[model.name];
-                                    return (
-                                        <div key={model.name} className="flex justify-between items-center">
+                            <div className="p-2">
+                                <h4 className="text-lg flex justify-between items-center">Manage Models
+                                    <Button variant="ghost" onClick={async (event) => {
+                                        const el = event.currentTarget.children[0];
+                                        el.classList.add("animate-spin")
+                                        await fetchModels()
+                                        setTimeout(() => {
+                                            el.classList.remove("animate-spin")
+                                        }, 500)
+                                    }}>
+                                        <RefreshCcw size={16}></RefreshCcw></Button></h4>
+                                <Separator className="my-2"></Separator>
+                                <div className="flex flex-col gap-2">
+                                    {models.map((model) => {
+                                        const isDownloading = addModelLoadingMap[model.name];
+                                        const status = addModelStatusMap[model.name];
+                                        return (
+                                            <div key={model.name} className="flex justify-between items-center">
                                             <span className="flex items-center gap-2">{model.name}
                                                 <Badge variant="secondary">{formatModelSize(model.size)}</Badge></span>
-                                            {model.temporary || isDownloading ? (
-                                                <div className="flex items-center gap-2">
-                                                    <LoaderIcon className="animate-spin" size={16}/>
-                                                    <span>{status?.message || "Downloading..."}</span>
-                                                    {typeof status?.completed === "number" && typeof status?.total === "number" && status.total > 0 && (
-                                                        <span>
+                                                {model.temporary || isDownloading ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <LoaderIcon className="animate-spin" size={16}/>
+                                                        <span>{status?.message || "Downloading..."}</span>
+                                                        {typeof status?.completed === "number" && typeof status?.total === "number" && status.total > 0 && (
+                                                            <span>
                                                             {`(${Math.round((status.completed / status.total) * 100)}%)`}
                                                         </span>
-                                                    )}
-                                                    <Button size="sm"
-                                                            className="bg-red-400"
-                                                            variant="destructive"
-                                                            onClick={() => handleCancelDownload(model.name)}>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <CircleSlash size={16}
-                                                                             className={'text-white'}></CircleSlash>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>Cancel Download</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
+                                                        )}
+                                                        <Button size="sm"
+                                                                className="bg-red-400"
+                                                                variant="destructive"
+                                                                onClick={() => handleCancelDownload(model.name)}>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <CircleSlash size={16}
+                                                                                 className={'text-white'}></CircleSlash>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Cancel Download</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <Button onClick={() => handleDeleteClick(model.name)}
+                                                            size="sm"
+                                                            variant="destructive">
+                                                        <Trash size={16} className={'text-white'}/>
                                                     </Button>
-                                                </div>
-                                            ) : (
-                                                <Button onClick={() => handleDeleteClick(model.name)}
-                                                        size="sm"
-                                                        variant="destructive">
-                                                    <Trash size={16} className={'text-white'}/>
-                                                </Button>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                                <Button onClick={() => setShowAddDialog(true)} className="mt-2"
-                                        variant="outline">
-                                    <Plus size={16} className="mr-1"/>Add Model
-                                </Button>
-                                <small className={'text-xs'}>Available Models <a
-                                    className="text-gray-500 underline hover:cursor-pointer hover:text-blue-900"
-                                    href={'https://ollama.com/library'}
-                                    target="_blank" rel="noopener noreferrer">
-                                    here
-                                </a></small>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                    <Button onClick={() => setShowAddDialog(true)} className="mt-2"
+                                            variant="outline">
+                                        <Plus size={16} className="mr-1"/>Add Model
+                                    </Button>
+                                    <small className={'text-xs'}>Available Models <a
+                                        className="text-gray-500 underline hover:cursor-pointer hover:text-blue-900"
+                                        href={'https://ollama.com/library'}
+                                        target="_blank" rel="noopener noreferrer">
+                                        here
+                                    </a></small>
+                                </div>
                             </div>
-                        </div>
-                    </DialogContent>
-                </Dialog>
+                        </DialogContent>
+                    </Dialog>
+                    <Button
+                        variant="outline"
+                        onClick={() => location.reload()}
+                        aria-label="Clear chat"
+                    >
+                        <Trash size={18}/>
+                    </Button>
+                </div>
 
                 {/* Delete Confirmation Dialog */}
                 <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
