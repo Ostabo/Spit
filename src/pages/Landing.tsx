@@ -43,7 +43,7 @@ const features = [
 export function Landing() {
     return (
         <main className="w-full h-full p-4 flex flex-col items-center bg-transparent">
-            <div className="area">
+            <div className="area pointer-events-none">
                 <ul className="circles">
                     <li></li>
                     <li></li>
