@@ -125,11 +125,6 @@
     }
 }
 
-.markdown-content {
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-}
-
 .markdown-content pre,
 .markdown-content code {
     white-space: pre-wrap; /* wraps code lines */
