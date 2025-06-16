@@ -7,7 +7,6 @@ import {Badge} from "@/components/ui/badge.tsx";
 import {formatModelSize} from "@/util/utils.ts";
 import {Input} from "@/components/ui/input.tsx";
 import {ModeToggle} from "@/components/mode-toggle.tsx";
-import {Card, CardContent} from "@/components/ui/card.tsx";
 import {ScrollArea} from "@/components/ui/scroll-area.tsx";
 import React, {useEffect, useRef, useState} from "react";
 import {ChatMessage, LocalModel, MessageRole, PullModelStatus} from "@/util/types.ts";
@@ -45,7 +44,7 @@ export function Chat() {
         // scrollRef.current?.children[1] is the ScrollArea's content div
         scrollRef.current?.children[1].scrollTo({
             top: scrollRef.current?.children[1].scrollHeight,
-            behavior: "instant"
+            behavior: "smooth"
         });
     }, [messages]);
 
@@ -598,21 +597,19 @@ export function Chat() {
                     <ModeToggle/>
                 </div>
             </div>
-            <Card className="flex-1 overflow-hidden">
-                <CardContent className="p-0 h-full">
-                    <ScrollArea className="h-full p-4 flex flex-col gap-2" ref={scrollRef}>
-                        {messages.map((msg, idx) => (
-                            <ChatMessageItem
-                                key={idx}
-                                msg={msg}
-                                idx={idx}
-                                thinkOpen={thinkOpen}
-                                setThinkOpen={setThinkOpen}
-                            />
-                        ))}
-                    </ScrollArea>
-                </CardContent>
-            </Card>
+            <ScrollArea ref={scrollRef} className="grow">
+                <div className="pb-1">
+                    {messages.map((msg, idx) => (
+                        <ChatMessageItem
+                            key={idx}
+                            msg={msg}
+                            idx={idx}
+                            thinkOpen={thinkOpen}
+                            setThinkOpen={setThinkOpen}
+                        />
+                    ))}
+                </div>
+            </ScrollArea>
 
             <Separator className="my-4"/>
 

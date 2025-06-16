@@ -134,3 +134,8 @@
 .markdown-content a {
     word-break: break-all; /* break long URLs if needed */
 }
+
+div[data-radix-scroll-area-viewport] > div {
+    display: block !important;
+    height: 100%;
+}
