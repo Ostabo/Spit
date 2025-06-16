@@ -78,15 +78,15 @@ const ChatMessageItem: React.FC<ChatMessageProps> = memo(({msg, idx, thinkOpen, 
                             highlighted = Prism.highlight(codeStr, Prism.languages[lang], lang);
                         }
                         return (
-                            <div className="relative group my-2">
+                            <div className="relative group/code my-2">
                                 {lang && (
                                     <span
-                                        className="absolute top-2 left-2 text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded z-10 select-none opacity-0 group-hover:opacity-80 transition-opacity">
+                                        className="absolute top-2 left-2 text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded z-10 select-none opacity-0 group-hover/code:opacity-80 transition-opacity">
                                         {lang}
                                     </span>
                                 )}
                                 <button
-                                    className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
+                                    className="absolute top-2 right-2 z-10 opacity-0 group-hover/code:opacity-100 transition-opacity bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
                                     onClick={() => handleCopy(codeStr, thisIdx)}
                                     type="button"
                                 >
@@ -122,3 +122,4 @@ const ChatMessageItem: React.FC<ChatMessageProps> = memo(({msg, idx, thinkOpen, 
 });
 
 export default ChatMessageItem;
+
