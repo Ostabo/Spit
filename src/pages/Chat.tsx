@@ -434,7 +434,7 @@ export function Chat() {
 
     return (
         <main className="container mx-auto max-w-4xl p-4 flex flex-col h-screen">
-            <div className="flex gap-2 justify-between items-center mb-4">
+            <div className="flex gap-2 justify-between items-center mb-2">
                 <div className="flex gap-2">
                     <Dialog>
                         <DialogTrigger asChild>
@@ -636,6 +636,9 @@ export function Chat() {
                     <ModeToggle/>
                 </div>
             </div>
+
+            <Separator/>
+
             <ScrollArea
                 ref={scrollRef}
                 className="grow relative"
