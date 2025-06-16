@@ -6,7 +6,7 @@ import Think from "@/components/think";
 import {ChatMessage} from "@/util/types";
 import Prism from "prismjs";
 import "prismjs/themes/prism.css";
-import "prismjs/components/prism-python";
+import "@/lib/prism-languages";
 import {Check, Copy} from "lucide-react";
 import {toast} from "@/components/ui/use-toast.ts";
 
@@ -96,7 +96,7 @@ const ChatMessageItem: React.FC<ChatMessageProps> = memo(({msg, idx, thinkOpen, 
                                         <Copy size={12}/>}
                                 </button>
                                 <pre
-                                    className={className + " rounded-lg bg-gray-50 dark:bg-gray-900 p-3 overflow-x-auto"}>
+                                    className={className + " rounded-lg bg-gray-50 dark:bg-gray-900 p-2 overflow-x-auto"}>
                                     <code
                                         {...props}
                                         className={className ? className + " text-sm" : "language-none text-sm"}

@@ -44,7 +44,7 @@ export function Chat() {
         // scrollRef.current?.children[1] is the ScrollArea's content div
         scrollRef.current?.children[1].scrollTo({
             top: scrollRef.current?.children[1].scrollHeight,
-            behavior: "smooth"
+            behavior: "instant"
         });
     }, [messages]);
 
