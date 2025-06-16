@@ -37,15 +37,17 @@ export function Chat() {
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [wasAtBottom, setWasAtBottom] = useState(true);
 
     const {toast} = useToast()
 
     useEffect(() => {
-        // scrollRef.current?.children[1] is the ScrollArea's content div
-        scrollRef.current?.children[1].scrollTo({
-            top: scrollRef.current?.children[1].scrollHeight,
-            behavior: "instant"
-        });
+        if (wasAtBottom) {
+            scrollRef.current?.children[1].scrollTo({
+                top: scrollRef.current?.children[1].scrollHeight,
+                behavior: "instant"
+            });
+        }
     }, [messages]);
 
     useEffect(() => {
@@ -65,8 +67,15 @@ export function Chat() {
         }
     };
 
+    const isAtBottom = () => {
+        const scrollArea = scrollRef.current?.children[1] as HTMLDivElement | undefined;
+        if (!scrollArea) return true;
+        return scrollArea.scrollTop + scrollArea.clientHeight >= scrollArea.scrollHeight - 10;
+    };
+
     const handleSend = async () => {
         if (!input.trim() && !selectedFile) return;
+        setWasAtBottom(isAtBottom());
         setLoading(true);
         let userMsg: ChatMessage = {role: MessageRole.user, content: input};
         if (selectedFile) userMsg = {...userMsg, image: ""};
@@ -411,6 +420,7 @@ export function Chat() {
     };
     const handleScrollToBottom = () => {
         const scrollArea = scrollRef.current?.children[1] as HTMLDivElement | undefined;
+        setWasAtBottom(true);
         if (scrollArea) {
             scrollArea.scrollTo({top: scrollArea.scrollHeight, behavior: 'smooth'});
         }
@@ -632,7 +642,10 @@ export function Chat() {
                 onMouseEnter={() => {
                     checkCanScrollDown();
                 }}
-                onScroll={checkCanScrollDown}
+                onScroll={() => {
+                    setWasAtBottom(isAtBottom())
+                    checkCanScrollDown()
+                }}
             >
                 <div className="pb-1 group">
                     {messages.map((msg, idx) => (
