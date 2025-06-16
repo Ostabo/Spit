@@ -555,6 +555,7 @@ export function Chat() {
                         </DialogHeader>
                         <div className="flex flex-col gap-2">
                             <Input
+                                as="input"
                                 placeholder="Enter model name - e.g. 'gemma3:1b'"
                                 value={newModelName}
                                 onChange={(e) => setNewModelName(e.target.value)}
