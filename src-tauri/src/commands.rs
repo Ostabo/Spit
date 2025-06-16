@@ -264,6 +264,7 @@ pub async fn ollama_add_model(app: AppHandle, name: String) -> Result<(), ()> {
         map.insert(name.clone(), cancel_token.clone());
     }
     use tokio_stream::StreamExt;
+    let mut had_error = false;
     match ollama.pull_model_stream(name.clone(), false).await {
         Ok(mut stream) => {
             while let Some(status) = stream.next().await {
@@ -272,6 +273,7 @@ pub async fn ollama_add_model(app: AppHandle, name: String) -> Result<(), ()> {
                         "ollama_add_model_error",
                         format!("Download for '{}' cancelled.", name),
                     );
+                    had_error = true;
                     break;
                 }
                 match status {
@@ -292,17 +294,18 @@ pub async fn ollama_add_model(app: AppHandle, name: String) -> Result<(), ()> {
                         }
                     }
                     Err(e) => {
-                        let _ = app.emit("ollama_add_model_error", format!("Failed: {}", e));
+                        let msg = format!("Failed: {}", e);
+                        let _ = app.emit("ollama_add_model_error", msg.clone());
+                        had_error = true;
                         break;
                     }
                 }
             }
         }
         Err(e) => {
-            let _ = app.emit(
-                "ollama_add_model_error",
-                format!("Failed to add model: {}", e),
-            );
+            let msg = format!("Failed to add model: {}", e);
+            let _ = app.emit("ollama_add_model_error", msg.clone());
+            had_error = true;
         }
     }
     {
@@ -315,7 +318,7 @@ pub async fn ollama_add_model(app: AppHandle, name: String) -> Result<(), ()> {
         let mut map = CANCEL_TOKENS.lock().await;
         map.remove(&name);
     }
-    Ok(())
+    if had_error { Err(()) } else { Ok(()) }
 }
 
 #[command]

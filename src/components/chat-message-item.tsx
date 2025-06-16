@@ -32,7 +32,6 @@ const ChatMessageItem: React.FC<ChatMessageProps> = memo(({msg, idx, thinkOpen, 
             toast({
                 title: "Failed to copy",
                 description: "Code could not be copied: " + e,
-                variant: "destructive"
             });
         }
     };

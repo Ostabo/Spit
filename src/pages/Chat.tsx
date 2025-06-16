@@ -226,7 +226,7 @@ export function Chat() {
         }
     };
 
-    const handleKeyDown = async (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const handleKeyDown = async (e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey && !loading) {
             e.preventDefault();
             await handleSend();
@@ -296,6 +296,11 @@ export function Chat() {
             setAddModelLoadingMap(prev => ({...prev, [name]: false}));
             setTimeout(() => fetchModels(), 1000);
         } catch (error) {
+            await fetchModels()
+            toast({
+                title: "Error",
+                description: `Failed to add model "${name}"`,
+            })
             setAddModelStatusMap(prev => ({
                 ...prev,
                 [name]: {message: `Fehler: ${error}`, digest: undefined, total: undefined, completed: undefined}
@@ -559,6 +564,12 @@ export function Chat() {
                                 placeholder="Enter model name - e.g. 'gemma3:1b'"
                                 value={newModelName}
                                 onChange={(e) => setNewModelName(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        handleConfirmAdd();
+                                    }
+                                }}
                                 disabled={Object.values(addModelLoadingMap).some(Boolean)}
                             />
                             <div className="flex justify-end gap-2">
