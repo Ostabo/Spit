@@ -1,6 +1,6 @@
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog.tsx";
 import {Button} from "@/components/ui/button.tsx";
-import {CircleSlash, LoaderIcon, Plus, RefreshCcw, Send, Settings, Trash} from "lucide-react";
+import {ChevronsDown, CircleSlash, LoaderIcon, Plus, RefreshCcw, Send, Settings, Trash} from "lucide-react";
 import {Separator} from "@/components/ui/separator.tsx";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.tsx";
 import {Badge} from "@/components/ui/badge.tsx";
@@ -402,7 +402,24 @@ export function Chat() {
         }
     };
 
-    // State for open/close of think block per message index
+    const [canScrollDown, setCanScrollDown] = useState(false);
+    const checkCanScrollDown = () => {
+        const scrollArea = scrollRef.current?.children[1] as HTMLDivElement | undefined;
+        if (scrollArea) {
+            setCanScrollDown(scrollArea.scrollTop + scrollArea.clientHeight < scrollArea.scrollHeight - 10);
+        }
+    };
+    const handleScrollToBottom = () => {
+        const scrollArea = scrollRef.current?.children[1] as HTMLDivElement | undefined;
+        if (scrollArea) {
+            scrollArea.scrollTo({top: scrollArea.scrollHeight, behavior: 'smooth'});
+        }
+    };
+
+    useEffect(() => {
+        checkCanScrollDown();
+    }, [messages]);
+
     const [thinkOpen, setThinkOpen] = useState<Record<number, boolean>>({});
 
     return (
@@ -609,8 +626,15 @@ export function Chat() {
                     <ModeToggle/>
                 </div>
             </div>
-            <ScrollArea ref={scrollRef} className="grow">
-                <div className="pb-1">
+            <ScrollArea
+                ref={scrollRef}
+                className="grow relative"
+                onMouseEnter={() => {
+                    checkCanScrollDown();
+                }}
+                onScroll={checkCanScrollDown}
+            >
+                <div className="pb-1 group">
                     {messages.map((msg, idx) => (
                         <ChatMessageItem
                             key={idx}
@@ -620,6 +644,18 @@ export function Chat() {
                             setThinkOpen={setThinkOpen}
                         />
                     ))}
+                    {canScrollDown && (
+                        <Button
+                            onClick={handleScrollToBottom}
+                            variant="outline"
+                            size="icon"
+                            className="absolute right-4 bottom-4 z-20 rounded-full shadow-lg bg-background text-primary border group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+                            aria-label="Scroll to bottom"
+                            tabIndex={-1}
+                        >
+                            <ChevronsDown size={20}/>
+                        </Button>
+                    )}
                 </div>
             </ScrollArea>
 
