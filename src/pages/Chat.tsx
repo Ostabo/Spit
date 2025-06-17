@@ -16,6 +16,7 @@ import {listen} from "@tauri-apps/api/event";
 import {load} from '@tauri-apps/plugin-store';
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip.tsx";
 import ChatMessageItem from "@/components/chat-message-item.tsx";
+import {UpdateButton} from "@/components/update-button.tsx";
 
 export function Chat() {
     const [messages, setMessages] = useState<ChatMessage[]>([{
@@ -612,6 +613,8 @@ export function Chat() {
                         </div>
                     </DialogContent>
                 </Dialog>
+
+                <UpdateButton/>
 
                 <div className="flex gap-2">
                     <Select value={selectedModel} required={true} onValueChange={(value => {
