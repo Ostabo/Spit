@@ -7,11 +7,13 @@ use commands::*;
 use tauri::Builder;
 use tauri_plugin_shell;
 use tauri_plugin_store::Builder as StoreBuilder;
+use tauri_plugin_updater;
 use tray::setup_tray;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(StoreBuilder::new().build())
         .setup(|app| {
             setup_tray(app)?;
