@@ -6,6 +6,7 @@ import Think from "@/components/think";
 import {ChatMessage} from "@/util/types";
 import Prism from "prismjs";
 import "prismjs/themes/prism.css";
+import "../assets/themes/prism-vsc-dark-plus.css";
 import "@/lib/prism-languages";
 import {Check, Copy} from "lucide-react";
 import {toast} from "@/components/ui/use-toast.ts";
@@ -78,7 +79,7 @@ const ChatMessageItem: React.FC<ChatMessageProps> = memo(({msg, idx, thinkOpen, 
                             highlighted = Prism.highlight(codeStr, Prism.languages[lang], lang);
                         }
                         return (
-                            <div className="relative group/code my-2">
+                            <div className="relative group/code my-2 inline-block align-middle">
                                 {lang && (
                                     <span
                                         className="absolute top-2 left-2 text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded z-10 select-none opacity-0 group-hover/code:opacity-80 transition-opacity">
@@ -122,4 +123,6 @@ const ChatMessageItem: React.FC<ChatMessageProps> = memo(({msg, idx, thinkOpen, 
 });
 
 export default ChatMessageItem;
+
+
 
