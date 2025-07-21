@@ -10,6 +10,13 @@ import "../assets/themes/prism-vsc-dark-plus.css";
 import "@/lib/prism-languages";
 import {Check, Copy} from "lucide-react";
 import {toast} from "@/components/ui/use-toast.ts";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import remarkParse from "remark-parse";
+import remarkRehype from "remark-rehype";
+import rehypeStringify from "rehype-stringify";
+import 'katex/dist/katex.min.css'
 
 interface ChatMessageProps {
     msg: ChatMessage;
@@ -54,7 +61,8 @@ const ChatMessageItem: React.FC<ChatMessageProps> = memo(({msg, idx, thinkOpen, 
             ref={markdownRef}
         >
             <ReactMarkdown
-                rehypePlugins={[rehypeThink]}
+                rehypePlugins={[rehypeThink, rehypeKatex, rehypeStringify]}
+                remarkPlugins={[remarkParse, remarkRehype, remarkGfm, remarkMath]}
                 components={{
                     // @ts-expect-error
                     think: (props) => (
