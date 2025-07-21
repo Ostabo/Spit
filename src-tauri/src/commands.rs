@@ -28,7 +28,11 @@ pub async fn call_ollama_chat(prompt: String, model: String) -> Result<String, S
     };
     let req = ChatMessageRequest::new(model.parse().unwrap(), history_clone.clone());
     match ollama.send_chat_messages(req).await {
-        Ok(response) => Ok(response.message.content),
+        Ok(response) => {
+            let mut h = CHAT_HISTORY.lock().unwrap();
+            h.push(ChatMessage::new(MessageRole::Assistant, response.message.content.clone()));
+            Ok(response.message.content)
+        }
         Err(e) => Err(format!("Ollama error: {}", e)),
     }
 }
@@ -137,6 +141,8 @@ pub async fn call_ollama_chat_stream(
                 );
                 if responses.done {
                     let _ = app.emit("ollama_stream_done", ());
+                    let mut h = CHAT_HISTORY.lock().unwrap();
+                    h.push(ChatMessage::new(MessageRole::Assistant, responses.message.content.clone()));
                 }
             }
             Err(e) => {
