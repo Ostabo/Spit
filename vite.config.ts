@@ -34,4 +34,7 @@ export default defineConfig(async () => ({
             '@': path.resolve(__dirname, './src'),
         },
     },
+    build: {
+        chunkSizeWarningLimit: 1600,
+    }
 }));
