@@ -62,7 +62,7 @@
     "@types/node": "^24.2.1",
     "@types/prismjs": "^1.26.5",
     "@types/react": "^19.1.10",
-    "@types/react-dom": "^19.1.6",
+    "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^4.7.0",
     "typescript": "~5.9.2",
     "vite": "^7.1.1"
