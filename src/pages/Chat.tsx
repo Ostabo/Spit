@@ -1,6 +1,6 @@
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog.tsx";
 import {Button} from "@/components/ui/button.tsx";
-import {ChevronsDown, CircleSlash, LoaderIcon, Plus, RefreshCcw, Send, Settings, Trash} from "lucide-react";
+import {ChevronsDown, CircleSlash, LoaderIcon, Plus, RefreshCcw, Send, Settings, Trash, Menu, X} from "lucide-react";
 import {Separator} from "@/components/ui/separator.tsx";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select.tsx";
 import {Badge} from "@/components/ui/badge.tsx";
@@ -9,7 +9,7 @@ import {Input} from "@/components/ui/input.tsx";
 import {ModeToggle} from "@/components/mode-toggle.tsx";
 import {ScrollArea} from "@/components/ui/scroll-area.tsx";
 import React, {useEffect, useRef, useState} from "react";
-import {ChatMessage, LocalModel, MessageRole, PullModelStatus} from "@/util/types.ts";
+import {ChatMessage, LocalModel, MessageRole, PullModelStatus, Conversation} from "@/util/types.ts";
 import {useToast} from "@/components/ui/use-toast.ts";
 import {invoke} from "@tauri-apps/api/core";
 import {listen} from "@tauri-apps/api/event";
@@ -17,6 +17,7 @@ import {load} from '@tauri-apps/plugin-store';
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip.tsx";
 import ChatMessageItem from "@/components/chat-message-item.tsx";
 import {UpdateButton} from "@/components/update-button.tsx";
+import {ConversationSidebar} from "@/components/conversation-sidebar.tsx";
 
 export function Chat() {
     const [messages, setMessages] = useState<ChatMessage[]>([{
@@ -35,6 +36,11 @@ export function Chat() {
     const [newModelName, setNewModelName] = useState("");
     const [chatMode, setChatMode] = useState<"call_ollama_api" | "call_ollama_chat">("call_ollama_api");
     const [responseMode, setResponseMode] = useState<'stream' | 'sync'>('stream');
+    
+    // Conversation management state
+    const [conversations, setConversations] = useState<Conversation[]>([]);
+    const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -76,6 +82,14 @@ export function Chat() {
 
     const handleSend = async () => {
         if (!input.trim() && !selectedFile) return;
+        
+        // Ensure we have a current conversation
+        if (!currentConversationId) {
+            await handleNewConversation();
+            // The handleNewConversation will set the currentConversationId, but we need to wait for it
+            // For now, we'll continue with the send process as the backend will handle it
+        }
+        
         setWasAtBottom(isAtBottom());
         setLoading(true);
         let userMsg: ChatMessage = {role: MessageRole.user, content: input};
@@ -179,6 +193,8 @@ export function Chat() {
             unsubChunk && unsubChunk();
             unsubDone && unsubDone();
             unsubError && unsubError();
+            // Refresh conversations after message is complete
+            loadConversations();
         };
 
         const handleError = (err: string) => {
@@ -365,6 +381,94 @@ export function Chat() {
         setShowAddDialog(false);
     };
 
+    // Conversation management functions
+    const loadConversations = async () => {
+        try {
+            await invoke("load_conversations_from_store");
+            const result = await invoke<Conversation[]>("get_conversations");
+            setConversations(result);
+            
+            const currentId = await invoke<string | null>("get_current_conversation_id");
+            setCurrentConversationId(currentId);
+            
+            if (currentId) {
+                const messages = await invoke<ChatMessage[]>("switch_conversation", { conversationId: currentId });
+                setMessages(messages.length > 0 ? messages : [{
+                    role: MessageRole.assistant,
+                    content: "Send a message to start...",
+                    chatModeChange: true
+                }]);
+            }
+        } catch (error) {
+            console.error("Failed to load conversations:", error);
+        }
+    };
+
+    const handleNewConversation = async () => {
+        try {
+            const conversationId = await invoke<string>("create_new_conversation");
+            setCurrentConversationId(conversationId);
+            setMessages([{
+                role: MessageRole.assistant,
+                content: "Send a message to start...",
+                chatModeChange: true
+            }]);
+            await loadConversations(); // Refresh the conversation list
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: `Failed to create new conversation: ${error}`,
+                variant: "destructive"
+            });
+        }
+    };
+
+    const handleSelectConversation = async (conversationId: string) => {
+        if (conversationId === currentConversationId) return;
+        
+        try {
+            const messages = await invoke<ChatMessage[]>("switch_conversation", { conversationId });
+            setCurrentConversationId(conversationId);
+            setMessages(messages.length > 0 ? messages : [{
+                role: MessageRole.assistant,
+                content: "Send a message to start...",
+                chatModeChange: true
+            }]);
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: `Failed to switch conversation: ${error}`,
+                variant: "destructive"
+            });
+        }
+    };
+
+    const handleDeleteConversation = async (conversationId: string) => {
+        try {
+            await invoke("delete_conversation", { conversationId });
+            await loadConversations(); // Refresh the conversation list
+            
+            // If we deleted the current conversation, create a new one
+            if (conversationId === currentConversationId) {
+                await handleNewConversation();
+            }
+        } catch (error) {
+            toast({
+                title: "Error", 
+                description: `Failed to delete conversation: ${error}`,
+                variant: "destructive"
+            });
+        }
+    };
+
+    const handleClearChat = async () => {
+        if (currentConversationId) {
+            await handleDeleteConversation(currentConversationId);
+        } else {
+            await handleNewConversation();
+        }
+    };
+
     const updateChatMode = (value: "call_ollama_api" | "call_ollama_chat") => {
         setChatMode(value);
         setMessages([...messages, {
@@ -398,6 +502,10 @@ export function Chat() {
 
     useEffect(() => {
         fetchModels();
+    }, []);
+
+    useEffect(() => {
+        loadConversations();
     }, []);
 
     const handleCancelDownload = async (modelName: string) => {
@@ -434,9 +542,31 @@ export function Chat() {
     const [thinkOpen, setThinkOpen] = useState<Record<number, boolean>>({});
 
     return (
-        <main className="container mx-auto max-w-4xl p-4 flex flex-col h-screen">
-            <div className="flex gap-2 justify-between items-center mb-2">
-                <div className="flex gap-2">
+        <div className="flex h-screen">
+            {/* Conversation Sidebar */}
+            <ConversationSidebar
+                conversations={conversations}
+                currentConversationId={currentConversationId}
+                onNewConversation={handleNewConversation}
+                onSelectConversation={handleSelectConversation}
+                onDeleteConversation={handleDeleteConversation}
+                isCollapsed={sidebarCollapsed}
+            />
+            
+            {/* Main Chat Area */}
+            <main className="flex-1 flex flex-col h-screen overflow-hidden">
+                {/* Header */}
+                <div className="border-b p-4 flex-shrink-0">
+                    <div className="flex gap-2 justify-between items-center">
+                        <div className="flex gap-2 items-center">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                                className="p-2"
+                            >
+                                {sidebarCollapsed ? <Menu size={16} /> : <X size={16} />}
+                            </Button>
                     <Dialog>
                         <DialogTrigger asChild>
                             <Button variant="outline"><Settings size={18}/></Button>
@@ -551,7 +681,7 @@ export function Chat() {
                     </Dialog>
                     <Button
                         variant="outline"
-                        onClick={() => location.reload()}
+                        onClick={handleClearChat}
                         aria-label="Clear chat"
                     >
                         <Trash size={18}/>
@@ -638,21 +768,22 @@ export function Chat() {
                     </Select>
                     <ModeToggle/>
                 </div>
-            </div>
+                    </div>
+                </div>
 
-            <Separator/>
-
-            <ScrollArea
-                ref={scrollRef}
-                className="grow relative"
-                onMouseEnter={() => {
-                    checkCanScrollDown();
-                }}
-                onScroll={() => {
-                    setWasAtBottom(isAtBottom())
-                    checkCanScrollDown()
-                }}
-            >
+                {/* Chat Messages Area */}
+                <div className="flex-1 flex flex-col min-h-0 p-4">
+                    <ScrollArea
+                        ref={scrollRef}
+                        className="flex-1 relative"
+                        onMouseEnter={() => {
+                            checkCanScrollDown();
+                        }}
+                        onScroll={() => {
+                            setWasAtBottom(isAtBottom())
+                            checkCanScrollDown()
+                        }}
+                    >
                 <div className="pb-1 group">
                     {messages.map((msg, idx) => (
                         <ChatMessageItem
@@ -677,10 +808,11 @@ export function Chat() {
                     )}
                 </div>
             </ScrollArea>
+                </div>
 
-            <Separator className="my-4"/>
-
-            <div className="flex gap-2 items-center">
+            {/* Input Area */}
+            <div className="border-t p-4 flex-shrink-0">
+                <div className="flex gap-2 items-center">
                 <input
                     type="file"
                     ref={fileInputRef}
@@ -709,7 +841,9 @@ export function Chat() {
                     <LoaderIcon size="16px" className="ms-2 animate-spin"/> :
                     <Send size="16px" className="ms-2"/>}
                 </Button>
+                </div>
             </div>
-        </main>
+            </main>
+        </div>
     )
 }

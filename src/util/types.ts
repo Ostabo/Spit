@@ -24,3 +24,11 @@ export type ChatMessage = {
     image?: string;
     chatModeChange?: boolean; // Optional field to indicate mode change
 }
+
+export type Conversation = {
+    id: string;
+    name: string;
+    messages: ChatMessage[];
+    created_at: string;
+    updated_at: string;
+}
