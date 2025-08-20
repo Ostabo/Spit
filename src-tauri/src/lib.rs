@@ -30,7 +30,14 @@ pub fn run() {
             ollama_list,
             ollama_add_model,
             ollama_delete_model,
-            ollama_cancel_download
+            ollama_cancel_download,
+            create_new_conversation,
+            get_conversations,
+            switch_conversation,
+            delete_conversation,
+            get_current_conversation_id,
+            load_conversations_from_store,
+            save_conversations_to_store
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

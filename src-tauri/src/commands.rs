@@ -6,7 +6,10 @@ use ollama_rs::generation::completion::request::GenerationRequest;
 use ollama_rs::generation::images::Image;
 use ollama_rs::Ollama;
 use std::ops::DerefMut;
+use std::collections::HashMap;
 use tauri::{command, AppHandle, Emitter};
+use tauri_plugin_store::StoreExt;
+use serde_json::json;
 
 #[command]
 pub async fn call_ollama_api(prompt: String, model: String) -> Result<String, String> {
@@ -22,15 +25,15 @@ pub async fn call_ollama_api(prompt: String, model: String) -> Result<String, St
 pub async fn call_ollama_chat(prompt: String, model: String) -> Result<String, String> {
     let ollama = Ollama::default();
     let history_clone = {
-        let mut h = CHAT_HISTORY.lock().unwrap();
-        h.push(ChatMessage::new(MessageRole::User, prompt));
-        h.clone()
+        let user_message = ChatMessage::new(MessageRole::User, prompt);
+        add_message_to_current_conversation(user_message);
+        get_current_conversation_messages()
     };
     let req = ChatMessageRequest::new(model.parse().unwrap(), history_clone.clone());
     match ollama.send_chat_messages(req).await {
         Ok(response) => {
-            let mut h = CHAT_HISTORY.lock().unwrap();
-            h.push(ChatMessage::new(MessageRole::Assistant, response.message.content.clone()));
+            let assistant_message = ChatMessage::new(MessageRole::Assistant, response.message.content.clone());
+            add_message_to_current_conversation(assistant_message);
             Ok(response.message.content)
         }
         Err(e) => Err(format!("Ollama error: {}", e)),
@@ -111,9 +114,9 @@ pub async fn call_ollama_chat_stream(
 ) -> Result<(), ()> {
     let ollama = Ollama::default();
     let history_clone = {
-        let mut h = CHAT_HISTORY.lock().unwrap();
-        h.push(ChatMessage::new(MessageRole::User, prompt));
-        h.clone()
+        let user_message = ChatMessage::new(MessageRole::User, prompt);
+        add_message_to_current_conversation(user_message);
+        get_current_conversation_messages()
     };
     let req = ChatMessageRequest::new(model.parse().unwrap(), history_clone.clone());
     let mut stream = match ollama.send_chat_messages_stream(req).await {
@@ -141,8 +144,8 @@ pub async fn call_ollama_chat_stream(
                 );
                 if responses.done {
                     let _ = app.emit("ollama_stream_done", ());
-                    let mut h = CHAT_HISTORY.lock().unwrap();
-                    h.push(ChatMessage::new(MessageRole::Assistant, responses.message.content.clone()));
+                    let assistant_message = ChatMessage::new(MessageRole::Assistant, responses.message.content.clone());
+                    add_message_to_current_conversation(assistant_message);
                 }
             }
             Err(e) => {
@@ -350,4 +353,140 @@ pub async fn ollama_delete_model(name: String) -> Result<String, String> {
         Ok(_) => Ok(format!("Model '{}' deleted.", name)),
         Err(e) => Err(format!("Failed to delete model: {}", e)),
     }
+}
+
+// Conversation management commands
+
+#[command]
+pub async fn create_new_conversation(app_handle: AppHandle) -> Result<String, String> {
+    let conversation_id = uuid::Uuid::new_v4().to_string();
+    let conversation = Conversation::new(conversation_id.clone());
+    
+    {
+        let mut conversations = CONVERSATIONS.lock().unwrap();
+        conversations.insert(conversation_id.clone(), conversation);
+    }
+    
+    {
+        let mut current_id = CURRENT_CONVERSATION_ID.lock().unwrap();
+        *current_id = Some(conversation_id.clone());
+    }
+    
+    // Save to store
+    save_conversations_to_store(app_handle).await?;
+    
+    Ok(conversation_id)
+}
+
+#[command]
+pub async fn get_conversations() -> Result<Vec<Conversation>, String> {
+    let conversations = CONVERSATIONS.lock().unwrap();
+    let mut conversation_list: Vec<Conversation> = conversations.values().cloned().collect();
+    
+    // Sort by updated_at descending (most recent first)
+    conversation_list.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    
+    Ok(conversation_list)
+}
+
+#[command]
+pub async fn switch_conversation(conversation_id: String) -> Result<Vec<ChatMessage>, String> {
+    {
+        let mut current_id = CURRENT_CONVERSATION_ID.lock().unwrap();
+        *current_id = Some(conversation_id.clone());
+    }
+    
+    let conversations = CONVERSATIONS.lock().unwrap();
+    if let Some(conversation) = conversations.get(&conversation_id) {
+        Ok(conversation.messages.clone())
+    } else {
+        Err(format!("Conversation {} not found", conversation_id))
+    }
+}
+
+#[command]
+pub async fn delete_conversation(app_handle: AppHandle, conversation_id: String) -> Result<(), String> {
+    {
+        let mut conversations = CONVERSATIONS.lock().unwrap();
+        if conversations.remove(&conversation_id).is_none() {
+            return Err(format!("Conversation {} not found", conversation_id));
+        }
+    }
+    
+    // If this was the current conversation, set current to None
+    {
+        let mut current_id = CURRENT_CONVERSATION_ID.lock().unwrap();
+        if current_id.as_ref() == Some(&conversation_id) {
+            *current_id = None;
+        }
+    }
+    
+    // Save to store
+    save_conversations_to_store(app_handle).await?;
+    
+    Ok(())
+}
+
+#[command]
+pub async fn get_current_conversation_id() -> Result<Option<String>, String> {
+    let current_id = CURRENT_CONVERSATION_ID.lock().unwrap();
+    Ok(current_id.clone())
+}
+
+#[command]
+pub async fn load_conversations_from_store(app_handle: AppHandle) -> Result<(), String> {
+    let store = app_handle.store("conversations.json");
+    
+    match store {
+        Ok(store) => {
+            match store.get("conversations") {
+                Some(value) => {
+                    if let Ok(stored_conversations) = serde_json::from_value::<HashMap<String, Conversation>>(value.clone()) {
+                        let mut conversations = CONVERSATIONS.lock().unwrap();
+                        *conversations = stored_conversations;
+                    }
+                }
+                None => {
+                    // No conversations stored yet, this is fine
+                }
+            }
+            
+            // Load current conversation ID
+            if let Some(value) = store.get("current_conversation_id") {
+                if let Ok(current_id) = serde_json::from_value::<Option<String>>(value.clone()) {
+                    let mut current = CURRENT_CONVERSATION_ID.lock().unwrap();
+                    *current = current_id;
+                }
+            }
+        }
+        Err(e) => {
+            return Err(format!("Failed to access store: {}", e));
+        }
+    }
+    
+    Ok(())
+}
+
+#[command]
+pub async fn save_conversations_to_store(app_handle: AppHandle) -> Result<(), String> {
+    let store = app_handle.store("conversations.json");
+    
+    match store {
+        Ok(store) => {
+            let conversations = CONVERSATIONS.lock().unwrap();
+            let current_id = CURRENT_CONVERSATION_ID.lock().unwrap();
+            
+            store.set("conversations", json!(*conversations));
+            store.set("current_conversation_id", json!(*current_id));
+            
+            if let Err(e) = store.save() {
+                return Err(format!("Failed to save store: {}", e));
+            }
+        }
+        Err(e) => {
+            return Err(format!("Failed to access store: {}", e));
+        }
+    }
+    
+    Ok(())
 }
