@@ -33,8 +33,8 @@ export function Chat() {
     const [modelToDelete, setModelToDelete] = useState<string | null>(null);
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [newModelName, setNewModelName] = useState("");
-    const [chatMode, setChatMode] = useState<"call_ollama_api" | "call_ollama_chat">("call_ollama_api");
-    const [responseMode, setResponseMode] = useState<'stream' | 'sync'>('stream');
+    const [chatMode, setChatMode] = useState<"call_ollama_api" | "call_ollama_chat">("call_ollama_chat");
+    const [responseMode, setResponseMode] = useState<'stream' | 'sync'>("stream");
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -374,21 +374,36 @@ export function Chat() {
         }])
     }
 
+    const [wasInitialized, setWasInitialized] = useState(false);
     useEffect(() => {
         (async () => {
-            const store = await load('settings.json', {autoSave: false});
+            const store = await load('settings.json', {
+                autoSave: false,
+                defaults: {
+                    chatMode: 'call_ollama_chat',
+                    responseMode: 'stream',
+                }
+            });
             const savedChatMode = await store.get<string>('chatMode');
             const savedResponseMode = await store.get<string>('responseMode');
             const savedModel = await store.get<string>('selectedModel');
             if (savedChatMode === 'call_ollama_api' || savedChatMode === 'call_ollama_chat') setChatMode(savedChatMode);
             if (savedResponseMode === 'stream' || savedResponseMode === 'sync') setResponseMode(savedResponseMode);
             if (savedModel) setSelectedModel(savedModel);
+            setWasInitialized(true);
         })();
     }, []);
 
     useEffect(() => {
         (async () => {
-            const store = await load('settings.json', {autoSave: false});
+            if (!wasInitialized) return;
+            const store = await load('settings.json', {
+                autoSave: false,
+                defaults: {
+                    chatMode: 'call_ollama_chat',
+                    responseMode: 'stream',
+                }
+            });
             await store.set('chatMode', chatMode);
             await store.set('responseMode', responseMode);
             await store.set('selectedModel', selectedModel);
