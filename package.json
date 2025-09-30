@@ -23,7 +23,7 @@
     "@radix-ui/react-icons": "^1.3.2",
     "@radix-ui/react-progress": "^1.1.7",
     "@radix-ui/react-scroll-area": "^1.2.10",
-    "@radix-ui/react-select": "^2.2.5",
+    "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-toast": "^1.2.15",
@@ -38,7 +38,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "embla-carousel-react": "^8.6.0",
-    "framer-motion": "^12.23.16",
+    "framer-motion": "^12.23.22",
     "katex": "^0.16.22",
     "lucide-react": "^0.544.0",
     "prismjs": "^1.30.0",
@@ -54,17 +54,17 @@
     "remark-rehype": "^11.1.2",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.13",
-    "tw-animate-css": "^1.3.8",
+    "tw-animate-css": "^1.4.0",
     "unist-util-visit": "^5.0.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
-    "@types/node": "^24.3.1",
+    "@types/node": "^24.6.0",
     "@types/prismjs": "^1.26.5",
-    "@types/react": "^19.1.13",
+    "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
-    "@vitejs/plugin-react": "^5.0.2",
+    "@vitejs/plugin-react": "^5.0.4",
     "typescript": "~5.9.2",
-    "vite": "^7.1.3"
+    "vite": "^7.1.7"
   }
 }
