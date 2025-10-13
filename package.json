@@ -39,7 +39,7 @@
     "clsx": "^2.1.1",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.23.22",
-    "katex": "^0.16.22",
+    "katex": "^0.16.25",
     "lucide-react": "^0.544.0",
     "prismjs": "^1.30.0",
     "react": "^19.2.0",
