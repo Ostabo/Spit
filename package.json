@@ -38,7 +38,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "embla-carousel-react": "^8.6.0",
-    "framer-motion": "^12.34.0",
+    "framer-motion": "^12.34.3",
     "katex": "^0.16.28",
     "lucide-react": "^0.564.0",
     "prismjs": "^1.30.0",
