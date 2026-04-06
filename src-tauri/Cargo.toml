@@ -30,7 +30,7 @@ tauri-plugin-shell = "2"
 tauri-plugin-updater = "2"
 tokio-stream = "0.1.18"
 tauri-plugin-store = "2"
-tokio = "1.49.0"
+tokio = "1.51.0"
 tokio-util = "0.7.18"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
